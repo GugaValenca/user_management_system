@@ -362,11 +362,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👨‍💻 Author
 
-**Guga Valença**
-
-- GitHub: [@GugaValenca](https://github.com/GugaValenca)
-- LinkedIn: [Your LinkedIn Profile]
-- Email: [your.email@example.com]
+**Gustavo Valenca**
+- GitHub: [@GugaTampa](https://github.com/gugatampa)
+- LinkedIn: [@GugaValenca](https://linkedin.com/in/gugavalenca)
+- Email: gustavo_valenca@hotmail.com
 
 ## 🙏 Acknowledgments
 
