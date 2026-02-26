@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import login
 from django.db import transaction
 from .models import User, UserActivityLog
@@ -39,7 +40,7 @@ def register_user(request):
         with transaction.atomic():
             user = serializer.save()
             log_user_activity(
-                user, 'login', 'User registered successfully', request)
+                user, 'register', 'User registered successfully', request)
 
             refresh = RefreshToken.for_user(user)
             return Response({
@@ -87,14 +88,16 @@ def login_user(request):
 def logout_user(request):
     try:
         refresh_token = request.data.get('refresh_token')
-        if refresh_token:
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+        if not refresh_token:
+            return Response({'error': 'refresh_token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        token = RefreshToken(refresh_token)
+        token.blacklist()
 
         log_user_activity(request.user, 'logout',
                           'User logged out successfully', request)
         return Response({'message': 'Logout successful'})
-    except Exception as e:
+    except TokenError:
         return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -144,10 +147,12 @@ class AdminUserListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        if user.role == 'admin':
-            return User.objects.all()
-        return User.objects.filter(id=user.id)
+        return User.objects.all()
+
+    def list(self, request, *args, **kwargs):
+        if request.user.role != 'admin':
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        return super().list(request, *args, **kwargs)
 
 
 @api_view(['GET'])

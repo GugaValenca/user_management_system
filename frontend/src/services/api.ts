@@ -8,7 +8,12 @@ import {
   UserStats,
 } from "../types";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const defaultApiBaseUrl =
+  window.location.hostname === "localhost" ? "http://localhost:8000/api" : "/api";
+
+const API_BASE_URL = (
+  process.env.REACT_APP_API_BASE_URL || defaultApiBaseUrl
+).replace(/\/+$/, "");
 
 const api = axios.create({
   baseURL: API_BASE_URL,

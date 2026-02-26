@@ -36,6 +36,7 @@ class User(AbstractUser):
 
 class UserActivityLog(models.Model):
     ACTIVITY_TYPES = [
+        ('register', 'Register'),
         ('login', 'Login'),
         ('logout', 'Logout'),
         ('profile_update', 'Profile Update'),

@@ -39,6 +39,7 @@ const ActivityLogs: React.FC = () => {
       profile_update: "info",
       password_change: "warning",
       email_change: "primary",
+      register: "success",
     };
     return badgeMap[activityType] || "light";
   };
