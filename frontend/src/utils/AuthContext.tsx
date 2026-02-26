@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { User, LoginCredentials, RegisterData } from "../types";
 import { authAPI } from "../services/api";
+import { authStorage } from "./authStorage";
 
 interface AuthContextType {
   user: User | null;
@@ -14,7 +15,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
 }
 
@@ -38,58 +39,63 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const isAuthenticated = !!user;
 
+  const clearSession = () => {
+    authStorage.clearTokens();
+    setUser(null);
+  };
+
+  const applyAuthResponse = (response: {
+    user: User;
+    tokens: { access: string; refresh: string };
+  }) => {
+    authStorage.setTokens(response.tokens);
+    setUser(response.user);
+  };
+
   useEffect(() => {
-    const initAuth = async () => {
-      const token = localStorage.getItem("access_token");
-      if (token) {
+    const initializeAuth = async () => {
+      const accessToken = authStorage.getAccessToken();
+      if (accessToken) {
         try {
           const userData = await authAPI.getProfile();
           setUser(userData);
-        } catch (error) {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
+        } catch {
+          clearSession();
         }
       }
       setIsLoading(false);
     };
 
-    initAuth();
+    initializeAuth();
+    // clearSession is stable enough here for one-time initialization.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const authenticate = async (
+    request: () => Promise<{ user: User; tokens: { access: string; refresh: string } }>
+  ) => {
+    const response = await request();
+    applyAuthResponse(response);
+  };
+
   const login = async (credentials: LoginCredentials) => {
-    try {
-      const response = await authAPI.login(credentials);
-      localStorage.setItem("access_token", response.tokens.access);
-      localStorage.setItem("refresh_token", response.tokens.refresh);
-      setUser(response.user);
-    } catch (error) {
-      throw error;
-    }
+    await authenticate(() => authAPI.login(credentials));
   };
 
   const register = async (data: RegisterData) => {
-    try {
-      const response = await authAPI.register(data);
-      localStorage.setItem("access_token", response.tokens.access);
-      localStorage.setItem("refresh_token", response.tokens.refresh);
-      setUser(response.user);
-    } catch (error) {
-      throw error;
-    }
+    await authenticate(() => authAPI.register(data));
   };
 
   const logout = async () => {
     try {
-      const refreshToken = localStorage.getItem("refresh_token");
+      const refreshToken = authStorage.getRefreshToken();
       if (refreshToken) {
         await authAPI.logout(refreshToken);
       }
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-      setUser(null);
+      clearSession();
     }
   };
 

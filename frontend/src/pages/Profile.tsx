@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Container,
   Row,
@@ -10,101 +10,122 @@ import {
   Tab,
   Tabs,
 } from "react-bootstrap";
-import { useAuth } from "../utils/AuthContext";
-import { authAPI } from "../services/api";
 import { FaUser, FaLock, FaSave } from "react-icons/fa";
+import { authAPI } from "../services/api";
+import { useAuth } from "../utils/AuthContext";
+import { User } from "../types";
+
+type ProfileFormData = Pick<
+  User,
+  "first_name" | "last_name" | "username" | "phone_number" | "date_of_birth" | "bio"
+>;
+
+type PasswordFormData = {
+  old_password: string;
+  new_password: string;
+  new_password_confirm: string;
+};
+
+const EMPTY_PROFILE_FORM: ProfileFormData = {
+  first_name: "",
+  last_name: "",
+  username: "",
+  phone_number: "",
+  date_of_birth: "",
+  bio: "",
+};
+
+const EMPTY_PASSWORD_FORM: PasswordFormData = {
+  old_password: "",
+  new_password: "",
+  new_password_confirm: "",
+};
 
 const Profile: React.FC = () => {
   const { user, updateUser } = useAuth();
-  const [profileData, setProfileData] = useState({
-    first_name: "",
-    last_name: "",
-    username: "",
-    phone_number: "",
-    date_of_birth: "",
-    bio: "",
-  });
-  const [passwordData, setPasswordData] = useState({
-    old_password: "",
-    new_password: "",
-    new_password_confirm: "",
-  });
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [profileForm, setProfileForm] = useState<ProfileFormData>(EMPTY_PROFILE_FORM);
+  const [passwordForm, setPasswordForm] = useState<PasswordFormData>(EMPTY_PASSWORD_FORM);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      setProfileData({
-        first_name: user.first_name || "",
-        last_name: user.last_name || "",
-        username: user.username || "",
-        phone_number: user.phone_number || "",
-        date_of_birth: user.date_of_birth || "",
-        bio: user.bio || "",
-      });
-    }
+    if (!user) return;
+
+    setProfileForm({
+      first_name: user.first_name || "",
+      last_name: user.last_name || "",
+      username: user.username || "",
+      phone_number: user.phone_number || "",
+      date_of_birth: user.date_of_birth || "",
+      bio: user.bio || "",
+    });
   }, [user]);
 
-  const handleProfileChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  const resetFeedback = () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+  };
+
+  const updateProfileField = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    setProfileData({
-      ...profileData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = event.target;
+    setProfileForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
   };
 
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPasswordData({
-      ...passwordData,
-      [e.target.name]: e.target.value,
-    });
+  const updatePasswordField = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+    setPasswordForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
   };
 
-  const handleProfileSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setMessage("");
-    setIsLoading(true);
+  const handleProfileSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    resetFeedback();
+    setIsSubmitting(true);
 
     try {
-      const updatedUser = await authAPI.updateProfile(profileData);
+      const updatedUser = await authAPI.updateProfile(profileForm);
       updateUser(updatedUser);
-      setMessage("Profile updated successfully!");
-    } catch (error: any) {
-      setError("Failed to update profile. Please try again.");
+      setSuccessMessage("Profile updated successfully!");
+    } catch {
+      setErrorMessage("Failed to update profile. Please try again.");
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setMessage("");
+  const handlePasswordSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    resetFeedback();
 
-    if (passwordData.new_password !== passwordData.new_password_confirm) {
-      setError("New passwords do not match");
+    if (passwordForm.new_password !== passwordForm.new_password_confirm) {
+      setErrorMessage("New passwords do not match");
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
-      await authAPI.changePassword(passwordData);
-      setPasswordData({
-        old_password: "",
-        new_password: "",
-        new_password_confirm: "",
-      });
-      setMessage("Password changed successfully!");
-    } catch (error: any) {
-      setError(
-        error.response?.data?.old_password?.[0] || "Failed to change password"
+      await authAPI.changePassword(passwordForm);
+      setPasswordForm(EMPTY_PASSWORD_FORM);
+      setSuccessMessage("Password changed successfully!");
+    } catch (error: unknown) {
+      const maybeAxiosError = error as {
+        response?: { data?: { old_password?: string[] } };
+      };
+      setErrorMessage(
+        maybeAxiosError.response?.data?.old_password?.[0] ||
+          "Failed to change password"
       );
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -119,8 +140,8 @@ const Profile: React.FC = () => {
         </Col>
       </Row>
 
-      {message && <Alert variant="success">{message}</Alert>}
-      {error && <Alert variant="danger">{error}</Alert>}
+      {successMessage && <Alert variant="success">{successMessage}</Alert>}
+      {errorMessage && <Alert variant="danger">{errorMessage}</Alert>}
 
       <Row>
         <Col>
@@ -144,8 +165,8 @@ const Profile: React.FC = () => {
                           <Form.Control
                             type="text"
                             name="first_name"
-                            value={profileData.first_name}
-                            onChange={handleProfileChange}
+                            value={profileForm.first_name}
+                            onChange={updateProfileField}
                             required
                           />
                         </Form.Group>
@@ -156,8 +177,8 @@ const Profile: React.FC = () => {
                           <Form.Control
                             type="text"
                             name="last_name"
-                            value={profileData.last_name}
-                            onChange={handleProfileChange}
+                            value={profileForm.last_name}
+                            onChange={updateProfileField}
                             required
                           />
                         </Form.Group>
@@ -171,8 +192,8 @@ const Profile: React.FC = () => {
                           <Form.Control
                             type="text"
                             name="username"
-                            value={profileData.username}
-                            onChange={handleProfileChange}
+                            value={profileForm.username}
+                            onChange={updateProfileField}
                             required
                           />
                         </Form.Group>
@@ -183,8 +204,8 @@ const Profile: React.FC = () => {
                           <Form.Control
                             type="tel"
                             name="phone_number"
-                            value={profileData.phone_number}
-                            onChange={handleProfileChange}
+                            value={profileForm.phone_number || ""}
+                            onChange={updateProfileField}
                             placeholder="(555) 123-4567"
                           />
                         </Form.Group>
@@ -196,8 +217,8 @@ const Profile: React.FC = () => {
                       <Form.Control
                         type="date"
                         name="date_of_birth"
-                        value={profileData.date_of_birth}
-                        onChange={handleProfileChange}
+                        value={profileForm.date_of_birth || ""}
+                        onChange={updateProfileField}
                       />
                     </Form.Group>
 
@@ -207,19 +228,15 @@ const Profile: React.FC = () => {
                         as="textarea"
                         rows={3}
                         name="bio"
-                        value={profileData.bio}
-                        onChange={handleProfileChange}
+                        value={profileForm.bio || ""}
+                        onChange={updateProfileField}
                         placeholder="Tell us about yourself..."
                       />
                     </Form.Group>
 
-                    <Button
-                      variant="primary"
-                      type="submit"
-                      disabled={isLoading}
-                    >
+                    <Button variant="primary" type="submit" disabled={isSubmitting}>
                       <FaSave className="me-2" />
-                      {isLoading ? "Saving..." : "Save Changes"}
+                      {isSubmitting ? "Saving..." : "Save Changes"}
                     </Button>
                   </Form>
                 </Tab>
@@ -239,8 +256,8 @@ const Profile: React.FC = () => {
                       <Form.Control
                         type="password"
                         name="old_password"
-                        value={passwordData.old_password}
-                        onChange={handlePasswordChange}
+                        value={passwordForm.old_password}
+                        onChange={updatePasswordField}
                         required
                       />
                     </Form.Group>
@@ -252,8 +269,8 @@ const Profile: React.FC = () => {
                           <Form.Control
                             type="password"
                             name="new_password"
-                            value={passwordData.new_password}
-                            onChange={handlePasswordChange}
+                            value={passwordForm.new_password}
+                            onChange={updatePasswordField}
                             required
                           />
                         </Form.Group>
@@ -264,21 +281,17 @@ const Profile: React.FC = () => {
                           <Form.Control
                             type="password"
                             name="new_password_confirm"
-                            value={passwordData.new_password_confirm}
-                            onChange={handlePasswordChange}
+                            value={passwordForm.new_password_confirm}
+                            onChange={updatePasswordField}
                             required
                           />
                         </Form.Group>
                       </Col>
                     </Row>
 
-                    <Button
-                      variant="primary"
-                      type="submit"
-                      disabled={isLoading}
-                    >
+                    <Button variant="primary" type="submit" disabled={isSubmitting}>
                       <FaLock className="me-2" />
-                      {isLoading ? "Changing..." : "Change Password"}
+                      {isSubmitting ? "Changing..." : "Change Password"}
                     </Button>
                   </Form>
                 </Tab>
@@ -292,3 +305,4 @@ const Profile: React.FC = () => {
 };
 
 export default Profile;
+

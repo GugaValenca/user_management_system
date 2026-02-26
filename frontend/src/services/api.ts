@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError, AxiosRequestConfig } from "axios";
 import {
   LoginCredentials,
   RegisterData,
@@ -7,6 +7,10 @@ import {
   ActivityLog,
   UserStats,
 } from "../types";
+import { authStorage } from "../utils/authStorage";
+
+type RetryableRequestConfig = AxiosRequestConfig & { _retry?: boolean };
+type PaginatedResponse<T> = { results: T[] };
 
 const defaultApiBaseUrl =
   window.location.hostname === "localhost" ? "http://localhost:8000/api" : "/api";
@@ -22,42 +26,47 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
+const redirectToLogin = () => {
+  authStorage.clearTokens();
+  window.location.href = "/login";
+};
+
+const getResponseData = <T>(config: Promise<{ data: T }>): Promise<T> =>
+  config.then((res) => res.data);
+
+const getListData = <T>(
+  config: Promise<{ data: T[] | PaginatedResponse<T> }>
+): Promise<T[]> =>
+  config.then((res) => ("results" in res.data ? res.data.results : res.data));
+
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("access_token");
+    const token = authStorage.getAccessToken();
     if (token) {
+      config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle token refresh
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry
+    ) {
       originalRequest._retry = true;
 
-      const refreshToken = localStorage.getItem("refresh_token");
+      const refreshToken = authStorage.getRefreshToken();
       if (refreshToken) {
-        try {
-          // Here you would implement token refresh logic
-          // For now, we'll redirect to login
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          window.location.href = "/login";
-        } catch (refreshError) {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          window.location.href = "/login";
-        }
+        // Token refresh is not implemented yet; keep behavior unchanged.
+        redirectToLogin();
       }
     }
 
@@ -67,37 +76,32 @@ api.interceptors.response.use(
 
 export const authAPI = {
   register: (data: RegisterData): Promise<AuthResponse> =>
-    api.post("/auth/register/", data).then((res) => res.data),
+    getResponseData(api.post("/auth/register/", data)),
 
   login: (credentials: LoginCredentials): Promise<AuthResponse> =>
-    api.post("/auth/login/", credentials).then((res) => res.data),
+    getResponseData(api.post("/auth/login/", credentials)),
 
   logout: (refreshToken: string): Promise<void> =>
-    api
-      .post("/auth/logout/", { refresh_token: refreshToken })
-      .then((res) => res.data),
+    getResponseData(api.post("/auth/logout/", { refresh_token: refreshToken })),
 
-  getProfile: (): Promise<User> =>
-    api.get("/auth/profile/").then((res) => res.data),
+  getProfile: (): Promise<User> => getResponseData(api.get("/auth/profile/")),
 
   updateProfile: (data: Partial<User>): Promise<User> =>
-    api.patch("/auth/profile/", data).then((res) => res.data),
+    getResponseData(api.patch("/auth/profile/", data)),
 
   changePassword: (data: {
     old_password: string;
     new_password: string;
     new_password_confirm: string;
   }): Promise<void> =>
-    api.post("/auth/change-password/", data).then((res) => res.data),
+    getResponseData(api.post("/auth/change-password/", data)),
 
   getActivityLogs: (): Promise<ActivityLog[]> =>
-    api.get("/auth/activity-logs/").then((res) => res.data.results || res.data),
+    getListData(api.get("/auth/activity-logs/")),
 
-  getUserStats: (): Promise<UserStats> =>
-    api.get("/auth/stats/").then((res) => res.data),
+  getUserStats: (): Promise<UserStats> => getResponseData(api.get("/auth/stats/")),
 
-  getAllUsers: (): Promise<User[]> =>
-    api.get("/auth/users/").then((res) => res.data.results || res.data),
+  getAllUsers: (): Promise<User[]> => getListData(api.get("/auth/users/")),
 };
 
 export default api;
