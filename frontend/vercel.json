@@ -2,6 +2,10 @@
   "outputDirectory": "build",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "https://user-management-api-theta.vercel.app/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

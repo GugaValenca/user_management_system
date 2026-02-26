@@ -14,9 +14,16 @@
 
 ## Live Demo
 
-- Frontend: `https://frontend-xi-azure-94.vercel.app`
-- Backend API: `https://backend-xi-topaz-21.vercel.app/api`
-- Django Admin: `https://backend-xi-topaz-21.vercel.app/admin/`
+- Site (public): `https://user-management-site.vercel.app`
+- Backend API: `https://user-management-api-theta.vercel.app/api`
+- Django Admin: `https://user-management-api-theta.vercel.app/admin/`
+
+### Production Architecture (Vercel)
+
+- `user-management-site` (frontend React)
+- `user-management-api` (backend Django)
+- Public access uses one main URL (`user-management-site.vercel.app`)
+- Frontend proxies `/api/*` requests to the backend via `frontend/vercel.json`
 
 ---
 
@@ -35,6 +42,7 @@
 ## Tech Stack
 
 ### Backend
+
 - Python 3.12
 - Django 4.2
 - Django REST Framework
@@ -43,6 +51,7 @@
 - `python-decouple`
 
 ### Frontend
+
 - React + TypeScript
 - React Router
 - Axios
@@ -50,6 +59,7 @@
 - React Icons
 
 ### Deployment
+
 - Vercel (frontend + backend/serverless)
 - Neon PostgreSQL
 
@@ -59,24 +69,24 @@
 
 ```bash
 user_management_system/
-├── backend/
-│   ├── accounts/                  # Models, serializers, views, urls
-│   ├── api/index.py               # Vercel Python entrypoint (WSGI)
-│   ├── user_management/           # Django settings / URLs
-│   ├── manage.py
-│   ├── requirements.txt
-│   └── vercel.json
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── services/api.ts
-│   │   ├── types/
-│   │   └── utils/AuthContext.tsx
-│   ├── package.json
-│   └── vercel.json
-└── README.md
+|-- backend/
+|   |-- accounts/                # Models, serializers, views, urls
+|   |-- api/index.py             # Vercel Python entrypoint (WSGI)
+|   |-- user_management/         # Django settings / URLs
+|   |-- manage.py
+|   |-- requirements.txt
+|   `-- vercel.json
+|-- frontend/
+|   |-- public/
+|   |-- src/
+|   |   |-- components/
+|   |   |-- pages/
+|   |   |-- services/api.ts
+|   |   |-- types/
+|   |   `-- utils/AuthContext.tsx
+|   |-- package.json
+|   `-- vercel.json
+`-- README.md
 ```
 
 ---
@@ -179,7 +189,7 @@ Frontend runs at `http://localhost:3000`
 
 ## Production Deployment (Vercel + Neon)
 
-### Backend (Vercel)
+### Backend (Vercel project: `user-management-api`)
 
 Required environment variables:
 
@@ -187,8 +197,8 @@ Required environment variables:
 - `DJANGO_DEBUG=False`
 - `DATABASE_URL` (Neon PostgreSQL)
 - `DJANGO_ALLOWED_HOSTS=.vercel.app,localhost,127.0.0.1`
-- `CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app,http://localhost:3000`
-- `CSRF_TRUSTED_ORIGINS=https://your-frontend.vercel.app,http://localhost:3000`
+- `CORS_ALLOWED_ORIGINS=https://user-management-site.vercel.app,http://localhost:3000`
+- `CSRF_TRUSTED_ORIGINS=https://user-management-site.vercel.app,http://localhost:3000`
 
 Deploy:
 
@@ -197,11 +207,9 @@ cd backend
 npx vercel --prod
 ```
 
-### Frontend (Vercel)
+### Frontend (Vercel project: `user-management-site`)
 
-Required environment variable:
-
-- `REACT_APP_API_BASE_URL=https://your-backend.vercel.app/api`
+The project is configured to use a single public URL. In production, `/api/*` is proxied to the backend through `frontend/vercel.json`.
 
 Deploy:
 
@@ -216,7 +224,7 @@ npx vercel --prod
 
 - The backend supports `DATABASE_URL` (PostgreSQL/Neon) and fallback local configuration.
 - JWT logout uses token blacklist (`rest_framework_simplejwt.token_blacklist`).
-- The frontend API URL is environment-based (no hardcoded localhost in production).
+- In production, the frontend can call `/api/*` (single public URL) because Vercel rewrites proxy requests to the backend project.
 
 ---
 
