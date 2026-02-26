@@ -1,4 +1,6 @@
 {
+  "buildCommand": "DATABASE_URL='' DB_ENGINE=sqlite python manage.py collectstatic --noinput",
+  "outputDirectory": "staticfiles",
   "routes": [
     {
       "src": "/(.*)",

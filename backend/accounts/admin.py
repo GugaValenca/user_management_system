@@ -25,3 +25,8 @@ class UserActivityLogAdmin(admin.ModelAdmin):
     search_fields = ['user__email', 'user__username', 'description']
     readonly_fields = ['timestamp']
     ordering = ['-timestamp']
+
+
+admin.site.site_header = "User Management System Administration"
+admin.site.site_title = "UMS Admin Portal"
+admin.site.index_title = "Administration Dashboard"
