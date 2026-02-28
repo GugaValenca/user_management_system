@@ -13,7 +13,7 @@ import { useAuth } from "../utils/AuthContext";
 import { FaEnvelope, FaLock } from "react-icons/fa";
 
 const Login: React.FC = () => {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -26,12 +26,15 @@ const Login: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await login({ email, password });
+      await login({ identifier, password });
       navigate("/dashboard");
     } catch (error: any) {
+      const apiData = error.response?.data;
       setError(
-        error.response?.data?.detail ||
-          "Login failed. Please check your credentials."
+        apiData?.detail ||
+          apiData?.non_field_errors?.[0] ||
+          apiData?.error ||
+          "Login failed. Please check your credentials and try again."
       );
     } finally {
       setIsLoading(false);
@@ -57,14 +60,14 @@ const Login: React.FC = () => {
                 <Form.Group className="mb-3">
                   <Form.Label>
                     <FaEnvelope className="me-2" />
-                    Email
+                    Email or Username
                   </Form.Label>
                   <Form.Control
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
                     required
-                    placeholder="Enter your email"
+                    placeholder="Enter your email or username"
                   />
                 </Form.Group>
 
