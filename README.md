@@ -1,243 +1,220 @@
 # User Management System
 
-[![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)](https://www.python.org/)
-[![Django](https://img.shields.io/badge/Django-4.2-green?logo=django)](https://www.djangoproject.com/)
-[![React](https://img.shields.io/badge/React-19-20232a?logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-4.9-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-336791?logo=postgresql&logoColor=white)](https://neon.tech/)
-[![Vercel](https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel)](https://vercel.com/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Django](https://img.shields.io/badge/django-%23092E20.svg?style=for-the-badge&logo=django&logoColor=white)
+![Django REST Framework](https://img.shields.io/badge/django%20rest%20framework-%23A30000.svg?style=for-the-badge&logo=django&logoColor=white)
+![JWT](https://img.shields.io/badge/Auth-JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
+![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
+![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/postgresql-%23336791.svg?style=for-the-badge&logo=postgresql&logoColor=white)
+![Vercel](https://img.shields.io/badge/deployed%20on-vercel-black?style=for-the-badge&logo=vercel)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 
-> Full-stack authentication and profile management system with JWT, role-based access, activity logs, admin panel, and production deployment on Vercel + Neon PostgreSQL.
-
----
+A full-stack authentication and account management platform built with Django REST Framework and React.
+It combines secure JWT-based access, role-aware flows, profile controls, and account activity tracking.
 
 ## Live Demo
 
-- Site (public): `https://user-management-site.vercel.app`
-- Backend API: `https://user-management-api-theta.vercel.app/api`
-- Django Admin: `https://user-management-api-theta.vercel.app/admin/`
+- **Main Demo:** https://user-management-site.vercel.app/
+- **API:** https://user-management-api-theta.vercel.app/api/
+- **Repository:** https://github.com/GugaValenca/user_management_system
 
-### Production Architecture (Vercel)
+## Overview
 
-- `user-management-site` (frontend React)
-- `user-management-api` (backend Django)
-- Public access uses one main URL (`user-management-site.vercel.app`)
-- Frontend proxies `/api/*` requests to the backend via `frontend/vercel.json`
+User Management System is a job-ready portfolio project designed to simulate practical account lifecycle management:
 
----
+- A React + TypeScript frontend with protected routes and role-aware navigation
+- A Django REST API with JWT authentication and access control rules
+- Production deployment on Vercel for frontend and backend
+- Docker-based local setup for backend and PostgreSQL
+
+The public demo is focused on the main user workflow. Administrative tools are reserved for internal management and development use.
 
 ## Features
 
-- JWT authentication (register, login, logout)
-- User profile management (profile info + password change)
+- JWT authentication (register, login, logout with token blacklist)
+- Custom user model with email-based authentication
 - Role-based access control (`user`, `moderator`, `admin`)
-- Activity logging (login, logout, profile updates, password changes)
-- Admin dashboard with user stats and user list
-- Protected frontend routes
-- Production-ready environment configuration
+- Profile editing and secure password change flow
+- Activity logging for key account security events
+- Admin-only endpoints for user listing and high-level stats
+- Frontend route guards for authenticated and admin-only screens
+- Production-ready API integration with Axios and typed request/response models
 
----
+## Screenshots
 
-## Tech Stack
+### Login
+![User Management System - Login](https://via.placeholder.com/1400x800/F5F7FA/1F2937?text=Login+Screenshot)
 
-### Backend
+### Dashboard
+![User Management System - Dashboard](https://via.placeholder.com/1400x800/F5F7FA/1F2937?text=Dashboard+Screenshot)
 
-- Python 3.12
-- Django 4.2
-- Django REST Framework
-- SimpleJWT
-- PostgreSQL (Neon)
-- `python-decouple`
+### Profile
+![User Management System - Profile](https://via.placeholder.com/1400x800/F5F7FA/1F2937?text=Profile+Screenshot)
 
-### Frontend
+## Installation
 
-- React + TypeScript
-- React Router
-- Axios
-- React Bootstrap + Bootstrap
-- React Icons
-
-### Deployment
-
-- Vercel (frontend + backend/serverless)
-- Neon PostgreSQL
-
----
-
-## Project Structure
-
-```bash
-user_management_system/
-|-- backend/
-|   |-- accounts/                # Models, serializers, views, urls
-|   |-- api/index.py             # Vercel Python entrypoint (WSGI)
-|   |-- user_management/         # Django settings / URLs
-|   |-- manage.py
-|   |-- requirements.txt
-|   `-- vercel.json
-|-- frontend/
-|   |-- public/
-|   |-- src/
-|   |   |-- components/
-|   |   |-- pages/
-|   |   |-- services/api.ts
-|   |   |-- types/
-|   |   `-- utils/AuthContext.tsx
-|   |-- package.json
-|   `-- vercel.json
-`-- README.md
-```
-
----
-
-## Main API Endpoints
-
-- `POST /api/auth/register/`
-- `POST /api/auth/login/`
-- `POST /api/auth/logout/`
-- `GET /api/auth/profile/`
-- `PATCH /api/auth/profile/`
-- `POST /api/auth/change-password/`
-- `GET /api/auth/activity-logs/`
-- `GET /api/auth/stats/` (admin)
-- `GET /api/auth/users/` (admin)
-
----
-
-## Local Development Setup
-
-### 1. Clone the repository
+1. Clone the repository:
 
 ```bash
 git clone https://github.com/GugaValenca/user_management_system.git
 cd user_management_system
 ```
 
-### 2. Backend setup (Django)
+2. Backend setup:
 
 ```bash
 cd backend
-python -m venv venv
+python -m venv .venv
 ```
 
 Windows:
 
 ```bash
-venv\Scripts\activate
+.venv\Scripts\activate
 ```
 
-Mac/Linux:
+macOS/Linux:
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 ```
 
-Install dependencies:
+Install backend dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Create `backend/.env` (example):
-
-```env
-DJANGO_SECRET_KEY=change-me
-DJANGO_DEBUG=True
-
-# Option A (recommended): full connection string (Neon/Postgres)
-DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
-
-# Local frontend
-CORS_ALLOWED_ORIGINS=http://localhost:3000
-CSRF_TRUSTED_ORIGINS=http://localhost:3000
-DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-```
-
-Run migrations and start server:
-
-```bash
-python manage.py migrate
-python manage.py createsuperuser
-python manage.py runserver
-```
-
-Backend runs at `http://127.0.0.1:8000`
-
-### 3. Frontend setup (React)
+3. Frontend setup:
 
 ```bash
 cd ../frontend
 npm install
 ```
 
-Create `frontend/.env`:
+## Usage
 
-```env
-REACT_APP_API_BASE_URL=http://localhost:8000/api
-```
+### Public Demo Flow
 
-Start frontend:
+1. Open the main demo URL
+2. Register a new account
+3. Access Dashboard, Profile, and Activity Logs
+4. Validate protected routes by signing out and revisiting private pages
+
+### Demo Access
+
+If demo access is required and no public credentials are documented, use placeholders:
+
+- Email: `[DEMO_EMAIL]`
+- Password: `[DEMO_PASSWORD]`
+
+### Local Development
+
+Option A: Docker backend + PostgreSQL
 
 ```bash
-npm start
+docker compose up --build
 ```
 
-Frontend runs at `http://localhost:3000`
+Option B: run backend and frontend separately
 
----
-
-## Production Deployment (Vercel + Neon)
-
-### Backend (Vercel project: `user-management-api`)
-
-Required environment variables:
-
-- `DJANGO_SECRET_KEY`
-- `DJANGO_DEBUG=False`
-- `DATABASE_URL` (Neon PostgreSQL)
-- `DJANGO_ALLOWED_HOSTS=.vercel.app,localhost,127.0.0.1`
-- `CORS_ALLOWED_ORIGINS=https://user-management-site.vercel.app,http://localhost:3000`
-- `CSRF_TRUSTED_ORIGINS=https://user-management-site.vercel.app,http://localhost:3000`
-
-Deploy:
+Backend:
 
 ```bash
 cd backend
-npx vercel --prod
+python manage.py migrate
+python manage.py runserver
 ```
 
-### Frontend (Vercel project: `user-management-site`)
-
-The project is configured to use a single public URL. In production, `/api/*` is proxied to the backend through `frontend/vercel.json`.
-
-Deploy:
+Frontend:
 
 ```bash
 cd frontend
-npx vercel --prod
+npm start
 ```
 
----
+## Project Structure
 
-## Notes
+```bash
+user_management_system/
+|-- backend/
+|   |-- accounts/
+|   |   |-- admin.py
+|   |   |-- models.py
+|   |   |-- serializers.py
+|   |   |-- views.py
+|   |   `-- urls.py
+|   |-- api/
+|   |   `-- index.py
+|   |-- user_management/
+|   |   |-- settings.py
+|   |   `-- urls.py
+|   |-- requirements.txt
+|   |-- vercel.json
+|   `-- Dockerfile
+|-- frontend/
+|   |-- src/
+|   |   |-- components/
+|   |   |-- pages/
+|   |   |-- services/api.ts
+|   |   |-- types/
+|   |   `-- utils/
+|   |-- package.json
+|   `-- vercel.json
+|-- docker-compose.yml
+|-- README.md
+`-- LICENSE
+```
 
-- The backend supports `DATABASE_URL` (PostgreSQL/Neon) and fallback local configuration.
-- JWT logout uses token blacklist (`rest_framework_simplejwt.token_blacklist`).
-- In production, the frontend can call `/api/*` (single public URL) because Vercel rewrites proxy requests to the backend project.
+## Key Technical Highlights / What I Learned
 
----
+- Implementing end-to-end JWT auth with token blacklisting on logout
+- Designing role-aware backend permissions and matching frontend route protection
+- Building a reusable typed API client layer in React + TypeScript
+- Tracking account-level activity data to support security and observability
+- Structuring deployment as separate frontend/backend Vercel projects with rewrite rules
 
-## Author
+## Technologies Used
 
-**Gustavo Valenca**
+- **Frontend:** React 19, TypeScript, React Router, Axios, React Bootstrap
+- **Backend:** Python 3.12, Django 4.2, Django REST Framework, SimpleJWT, django-cors-headers, WhiteNoise
+- **Database:** PostgreSQL (production/Docker), SQLite (local fallback)
+- **Testing:** React Testing Library setup, Django test framework setup
+- **Deployment:** Vercel
+- **Containerization:** Docker, Docker Compose
+- **Package Managers:** npm (frontend), pip (backend)
 
-- GitHub: [@GugaValenca](https://github.com/GugaValenca)
-- LinkedIn: [@GugaValenca](https://linkedin.com/in/gugavalenca)
-- Email: `gustavo_valenca@hotmail.com`
+## Future Improvements
 
----
+- Add automated backend tests for auth and role-based endpoints
+- Implement silent refresh flow on the frontend
+- Add search and pagination controls for admin user management
+- Improve observability with structured logging and error tracking
+- Add CI checks for linting and automated tests
+
+## Contributing
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m "Add some AmazingFeature"`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## License
 
 This project is licensed under the MIT License.
+
+## Contact
+
+**Gustavo Valenca**
+
+[![GitHub](https://img.shields.io/badge/github-%23121011.svg?style=for-the-badge&logo=github&logoColor=white)](https://github.com/GugaValenca)
+[![LinkedIn](https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/gugavalenca/)
+[![Instagram](https://img.shields.io/badge/Instagram-%23E4405F.svg?style=for-the-badge&logo=Instagram&logoColor=white)](https://www.instagram.com/gugatampa)
+[![Twitch](https://img.shields.io/badge/Twitch-%239146FF.svg?style=for-the-badge&logo=Twitch&logoColor=white)](https://www.twitch.tv/gugatampa)
+[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/invite/3QQyR5whBZ)
+
+---
+
+If you found this project helpful, please give it a star.
