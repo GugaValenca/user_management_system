@@ -20,6 +20,17 @@ def root_status(request):
     )
 
 
+def api_status(request):
+    return JsonResponse(
+        {
+            "status": "ok",
+            "service": "user_management_system_api",
+            "base_path": "/api/auth/",
+            "health": "/health/",
+        }
+    )
+
+
 def health_status(request):
     db_ok = True
     db_error = None
@@ -47,6 +58,7 @@ def health_status(request):
 
 urlpatterns = [
     path('', root_status, name='root_status'),
+    path('api/', api_status, name='api_status'),
     path('health/', health_status, name='health_status'),
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
