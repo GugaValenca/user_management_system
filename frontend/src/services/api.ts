@@ -15,8 +15,15 @@ type PaginatedResponse<T> = { results: T[] };
 const defaultApiBaseUrl =
   window.location.hostname === "localhost" ? "http://localhost:8002/api" : "/api";
 
+const configuredApiBaseUrl = (process.env.REACT_APP_API_BASE_URL || "").trim();
+const shouldIgnoreConfiguredLocalhostUrl =
+  window.location.hostname !== "localhost" &&
+  configuredApiBaseUrl.includes("localhost");
+
 const API_BASE_URL = (
-  process.env.REACT_APP_API_BASE_URL || defaultApiBaseUrl
+  shouldIgnoreConfiguredLocalhostUrl || !configuredApiBaseUrl
+    ? defaultApiBaseUrl
+    : configuredApiBaseUrl
 ).replace(/\/+$/, "");
 
 const api = axios.create({
