@@ -13,7 +13,7 @@ type RetryableRequestConfig = AxiosRequestConfig & { _retry?: boolean };
 type PaginatedResponse<T> = { results: T[] };
 
 const defaultApiBaseUrl =
-  window.location.hostname === "localhost" ? "http://localhost:8000/api" : "/api";
+  window.location.hostname === "localhost" ? "http://localhost:8002/api" : "/api";
 
 const API_BASE_URL = (
   process.env.REACT_APP_API_BASE_URL || defaultApiBaseUrl
@@ -84,7 +84,15 @@ export const authAPI = {
   login: (credentials: LoginCredentials): Promise<AuthResponse> => {
     // Avoid stale-token auth failures on login endpoints.
     authStorage.clearTokens();
-    return getResponseData(api.post("/auth/login/", credentials));
+    const normalizedIdentifier = credentials.identifier.trim();
+    return getResponseData(
+      api.post("/auth/login/", {
+        identifier: normalizedIdentifier,
+        // Backward compatibility: older backend versions expect `email`.
+        email: normalizedIdentifier,
+        password: credentials.password,
+      })
+    );
   },
 
   logout: (refreshToken: string): Promise<void> =>

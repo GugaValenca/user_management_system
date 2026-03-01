@@ -26,7 +26,7 @@ const Login: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await login({ identifier, password });
+      await login({ identifier: identifier.trim(), password });
       navigate("/dashboard");
     } catch (error: any) {
       const apiData = error.response?.data;
