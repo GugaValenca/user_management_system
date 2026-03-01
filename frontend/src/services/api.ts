@@ -41,8 +41,11 @@ const getListData = <T>(
 
 api.interceptors.request.use(
   (config) => {
+    const requestUrl = String(config.url ?? "");
+    const isPublicAuthEndpoint =
+      requestUrl.includes("/auth/login/") || requestUrl.includes("/auth/register/");
     const token = authStorage.getAccessToken();
-    if (token) {
+    if (token && !isPublicAuthEndpoint) {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -78,8 +81,11 @@ export const authAPI = {
   register: (data: RegisterData): Promise<AuthResponse> =>
     getResponseData(api.post("/auth/register/", data)),
 
-  login: (credentials: LoginCredentials): Promise<AuthResponse> =>
-    getResponseData(api.post("/auth/login/", credentials)),
+  login: (credentials: LoginCredentials): Promise<AuthResponse> => {
+    // Avoid stale-token auth failures on login endpoints.
+    authStorage.clearTokens();
+    return getResponseData(api.post("/auth/login/", credentials));
+  },
 
   logout: (refreshToken: string): Promise<void> =>
     getResponseData(api.post("/auth/logout/", { refresh_token: refreshToken })),
