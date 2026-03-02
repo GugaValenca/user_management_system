@@ -44,13 +44,13 @@ The public demo is focused on the main user workflow. Administrative tools are r
 ## Screenshots
 
 ### Login
-![User Management System - Login](https://via.placeholder.com/1400x800/F5F7FA/1F2937?text=Login+Screenshot)
+![User Management System - Login](docs/images/login.png)
 
 ### Dashboard
-![User Management System - Dashboard](https://via.placeholder.com/1400x800/F5F7FA/1F2937?text=Dashboard+Screenshot)
+![User Management System - Dashboard](docs/images/dashboard.png)
 
-### Profile
-![User Management System - Profile](https://via.placeholder.com/1400x800/F5F7FA/1F2937?text=Profile+Screenshot)
+### Admin Panel
+![User Management System - Admin Panel](docs/images/admin-panel.png)
 
 ## Installation
 
@@ -134,6 +134,26 @@ cd frontend
 npm start
 ```
 
+### Auth Monitoring
+
+- API health: `GET /health/`
+- Auth health: `GET /health/auth/`
+- Production example:
+
+```bash
+curl https://user-management-api-theta.vercel.app/health/auth/
+```
+
+The auth health endpoint reports successful login volume in the last 24h and the latest successful login timestamp.
+
+### Deploy and Rollback Runbook
+
+1. Validate API and auth health before deploy.
+2. Deploy backend and frontend on Vercel.
+3. Validate login flow in production (`/login` -> `/dashboard` -> `/admin`).
+4. If regression happens, rollback by redeploying the last stable Git commit and re-running validation.
+5. Keep the last stable deployment URL documented in Vercel project notes for fast recovery.
+
 ## Project Structure
 
 ```bash
@@ -187,7 +207,6 @@ user_management_system/
 
 ## Future Improvements
 
-- Add automated backend tests for auth and role-based endpoints
 - Implement silent refresh flow on the frontend
 - Add search and pagination controls for admin user management
 - Improve observability with structured logging and error tracking
