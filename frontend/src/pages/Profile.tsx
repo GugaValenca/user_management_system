@@ -159,7 +159,7 @@ const Profile: React.FC = () => {
                   <Form onSubmit={handleProfileSubmit} className="mt-3">
                     <Row>
                       <Col md={6}>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="profileFirstName">
                           <Form.Label>First Name</Form.Label>
                           <Form.Control
                             type="text"
@@ -171,7 +171,7 @@ const Profile: React.FC = () => {
                         </Form.Group>
                       </Col>
                       <Col md={6}>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="profileLastName">
                           <Form.Label>Last Name</Form.Label>
                           <Form.Control
                             type="text"
@@ -186,7 +186,7 @@ const Profile: React.FC = () => {
 
                     <Row>
                       <Col md={6}>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="profileUsername">
                           <Form.Label>Username</Form.Label>
                           <Form.Control
                             type="text"
@@ -198,7 +198,7 @@ const Profile: React.FC = () => {
                         </Form.Group>
                       </Col>
                       <Col md={6}>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="profilePhoneNumber">
                           <Form.Label>Phone Number</Form.Label>
                           <Form.Control
                             type="tel"
@@ -211,7 +211,7 @@ const Profile: React.FC = () => {
                       </Col>
                     </Row>
 
-                    <Form.Group className="mb-3">
+                    <Form.Group className="mb-3" controlId="profileDateOfBirth">
                       <Form.Label>Date of Birth</Form.Label>
                       <Form.Control
                         type="date"
@@ -221,7 +221,7 @@ const Profile: React.FC = () => {
                       />
                     </Form.Group>
 
-                    <Form.Group className="mb-3">
+                    <Form.Group className="mb-3" controlId="profileBio">
                       <Form.Label>Bio</Form.Label>
                       <Form.Control
                         as="textarea"
@@ -250,7 +250,7 @@ const Profile: React.FC = () => {
                   }
                 >
                   <Form onSubmit={handlePasswordSubmit} className="mt-3">
-                    <Form.Group className="mb-3">
+                    <Form.Group className="mb-3" controlId="profileOldPassword">
                       <Form.Label>Current Password</Form.Label>
                       <Form.Control
                         type="password"
@@ -263,7 +263,7 @@ const Profile: React.FC = () => {
 
                     <Row>
                       <Col md={6}>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="profileNewPassword">
                           <Form.Label>New Password</Form.Label>
                           <Form.Control
                             type="password"
@@ -275,7 +275,7 @@ const Profile: React.FC = () => {
                         </Form.Group>
                       </Col>
                       <Col md={6}>
-                        <Form.Group className="mb-3">
+                        <Form.Group className="mb-3" controlId="profileNewPasswordConfirm">
                           <Form.Label>Confirm New Password</Form.Label>
                           <Form.Control
                             type="password"

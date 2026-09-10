@@ -47,7 +47,7 @@ const Login: React.FC = () => {
               {error && <Alert variant="danger">{error}</Alert>}
 
               <Form onSubmit={handleSubmit}>
-                <Form.Group className="mb-3">
+                <Form.Group className="mb-3" controlId="loginIdentifier">
                   <Form.Label>
                     <FaEnvelope className="me-2" />
                     Email or Username
@@ -61,7 +61,7 @@ const Login: React.FC = () => {
                   />
                 </Form.Group>
 
-                <Form.Group className="mb-3">
+                <Form.Group className="mb-3" controlId="loginPassword">
                   <Form.Label>
                     <FaLock className="me-2" />
                     Password

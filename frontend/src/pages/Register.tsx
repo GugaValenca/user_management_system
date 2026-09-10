@@ -69,7 +69,7 @@ const Register: React.FC = () => {
               <Form onSubmit={handleSubmit}>
                 <Row>
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group className="mb-3" controlId="registerFirstName">
                       <Form.Label>
                         <FaUser className="me-2" />
                         First Name
@@ -85,7 +85,7 @@ const Register: React.FC = () => {
                     </Form.Group>
                   </Col>
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group className="mb-3" controlId="registerLastName">
                       <Form.Label>
                         <FaUser className="me-2" />
                         Last Name
@@ -102,7 +102,7 @@ const Register: React.FC = () => {
                   </Col>
                 </Row>
 
-                <Form.Group className="mb-3">
+                <Form.Group className="mb-3" controlId="registerUsername">
                   <Form.Label>
                     <FaUser className="me-2" />
                     Username
@@ -117,7 +117,7 @@ const Register: React.FC = () => {
                   />
                 </Form.Group>
 
-                <Form.Group className="mb-3">
+                <Form.Group className="mb-3" controlId="registerEmail">
                   <Form.Label>
                     <FaEnvelope className="me-2" />
                     Email
@@ -134,7 +134,7 @@ const Register: React.FC = () => {
 
                 <Row>
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group className="mb-3" controlId="registerPassword">
                       <Form.Label>
                         <FaLock className="me-2" />
                         Password
@@ -150,7 +150,7 @@ const Register: React.FC = () => {
                     </Form.Group>
                   </Col>
                   <Col md={6}>
-                    <Form.Group className="mb-3">
+                    <Form.Group className="mb-3" controlId="registerPasswordConfirm">
                       <Form.Label>
                         <FaLock className="me-2" />
                         Confirm Password

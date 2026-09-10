@@ -1,7 +1,7 @@
 import React from "react";
 import { Navbar, Nav, NavDropdown, Container } from "react-bootstrap";
 import { useAuth } from "../utils/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FaUser, FaSignOutAlt, FaCog } from "react-icons/fa";
 
 const Navigation: React.FC = () => {
@@ -16,16 +16,28 @@ const Navigation: React.FC = () => {
   return (
     <Navbar bg="dark" variant="dark" expand="lg" className="mb-4">
       <Container>
-        <Navbar.Brand href="/dashboard">User Management System</Navbar.Brand>
+        <Navbar.Brand as={Link} to="/dashboard">
+          User Management System
+        </Navbar.Brand>
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
         <Navbar.Collapse id="basic-navbar-nav">
           {isAuthenticated && (
             <>
               <Nav className="me-auto">
-                <Nav.Link href="/dashboard">Dashboard</Nav.Link>
-                <Nav.Link href="/profile">Profile</Nav.Link>
-                <Nav.Link href="/activity">Activity Logs</Nav.Link>
-                {user?.role === "admin" && <Nav.Link href="/admin">Admin Panel</Nav.Link>}
+                <Nav.Link as={Link} to="/dashboard">
+                  Dashboard
+                </Nav.Link>
+                <Nav.Link as={Link} to="/profile">
+                  Profile
+                </Nav.Link>
+                <Nav.Link as={Link} to="/activity">
+                  Activity Logs
+                </Nav.Link>
+                {user?.role === "admin" && (
+                  <Nav.Link as={Link} to="/admin">
+                    Admin Panel
+                  </Nav.Link>
+                )}
               </Nav>
               <Nav>
                 <NavDropdown
@@ -37,7 +49,7 @@ const Navigation: React.FC = () => {
                   }
                   id="user-dropdown"
                 >
-                  <NavDropdown.Item href="/profile">
+                  <NavDropdown.Item as={Link} to="/profile">
                     <FaCog className="me-2" />
                     Settings
                   </NavDropdown.Item>
