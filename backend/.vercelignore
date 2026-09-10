@@ -4,3 +4,5 @@ __pycache__
 .env
 media
 staticfiles
+pyproject.toml
+requirements-dev.txt
