@@ -2,4 +2,10 @@
 // allows you to do things like:
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom';
+import "@testing-library/jest-dom";
+
+// jest-environment-jsdom doesn't provide these globals, but react-router
+// depends on them at import time.
+import { TextDecoder, TextEncoder } from "util";
+
+Object.assign(global, { TextEncoder, TextDecoder });

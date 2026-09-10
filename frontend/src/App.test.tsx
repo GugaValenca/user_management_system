@@ -1,9 +1,13 @@
-import React from 'react';
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import React from "react";
+import { render, screen } from "@testing-library/react";
+import App from "./App";
 
-test('renders learn react link', () => {
+beforeEach(() => {
+  localStorage.clear();
+});
+
+test("redirects an unauthenticated visitor to the login page", async () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+
+  expect(await screen.findByRole("heading", { name: /login/i })).toBeInTheDocument();
 });
