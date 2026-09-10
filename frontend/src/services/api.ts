@@ -13,7 +13,7 @@ type RetryableRequestConfig = AxiosRequestConfig & { _retry?: boolean };
 type PaginatedResponse<T> = { results: T[] };
 
 const defaultApiBaseUrl =
-  window.location.hostname === "localhost" ? "http://localhost:8002/api" : "/api";
+  window.location.hostname === "localhost" ? "http://localhost:8000/api" : "/api";
 
 const configuredApiBaseUrl = (process.env.REACT_APP_API_BASE_URL || "").trim();
 const shouldIgnoreConfiguredLocalhostUrl =
