@@ -1,16 +1,29 @@
-from rest_framework import status, generics, permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import status, generics
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-from django.contrib.auth import login
 from django.db import transaction
+from django.utils import timezone
 from .models import User, UserActivityLog
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer,
     UserProfileSerializer, PasswordChangeSerializer, UserActivityLogSerializer
 )
+
+
+class LoginRateThrottle(AnonRateThrottle):
+    scope = 'login'
+
+
+class RegisterRateThrottle(AnonRateThrottle):
+    scope = 'register'
+
+
+class PasswordChangeRateThrottle(UserRateThrottle):
+    scope = 'password_change'
 
 
 def get_client_ip(request):
@@ -34,6 +47,7 @@ def log_user_activity(user, activity_type, description, request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterRateThrottle])
 def register_user(request):
     serializer = UserRegistrationSerializer(data=request.data)
     if serializer.is_valid():
@@ -57,15 +71,17 @@ def register_user(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([LoginRateThrottle])
 def login_user(request):
     serializer = UserLoginSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.validated_data['user']
-        login(request, user)
 
-        # Update last login IP
+        # Django's session-based login() would normally update last_login and
+        # start a session; we only use JWTs here, so update it manually instead.
+        user.last_login = timezone.now()
         user.last_login_ip = get_client_ip(request)
-        user.save(update_fields=['last_login_ip'])
+        user.save(update_fields=['last_login', 'last_login_ip'])
 
         log_user_activity(
             user, 'login', 'User logged in successfully', request)
@@ -118,6 +134,7 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([PasswordChangeRateThrottle])
 def change_password(request):
     serializer = PasswordChangeSerializer(
         data=request.data, context={'request': request})

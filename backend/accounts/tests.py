@@ -1,9 +1,13 @@
+from unittest import mock
+
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User, UserActivityLog
+from .views import LoginRateThrottle
 
 
 def create_user(**overrides):
@@ -360,6 +364,35 @@ class AdminEndpointTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_users"], 2)
         self.assertEqual(response.data["admin_users"], 1)
+
+
+class LoginThrottleTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.password = "TestPass123!"
+        self.user = create_user(password=self.password)
+        self.login_url = reverse("login")
+
+    def tearDown(self):
+        cache.clear()
+
+    @mock.patch.dict(LoginRateThrottle.THROTTLE_RATES, {"login": "2/min"})
+    def test_repeated_login_attempts_are_throttled(self):
+        for _ in range(2):
+            response = self.client.post(
+                self.login_url,
+                {"identifier": self.user.username, "password": "wrong-password"},
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        throttled_response = self.client.post(
+            self.login_url,
+            {"identifier": self.user.username, "password": self.password},
+            format="json",
+        )
+
+        self.assertEqual(throttled_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
 
 class AuthHealthEndpointTests(APITestCase):
