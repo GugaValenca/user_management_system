@@ -275,7 +275,10 @@ const Profile: React.FC = () => {
                         </Form.Group>
                       </Col>
                       <Col md={6}>
-                        <Form.Group className="mb-3" controlId="profileNewPasswordConfirm">
+                        <Form.Group
+                          className="mb-3"
+                          controlId="profileNewPasswordConfirm"
+                        >
                           <Form.Label>Confirm New Password</Form.Label>
                           <Form.Control
                             type="password"

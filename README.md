@@ -10,6 +10,8 @@
 ![Vercel](https://img.shields.io/badge/deployed%20on-vercel-black?style=for-the-badge&logo=vercel)
 ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
 
+[![CI](https://github.com/GugaValenca/user_management_system/actions/workflows/ci.yml/badge.svg)](https://github.com/GugaValenca/user_management_system/actions/workflows/ci.yml)
+
 A full-stack authentication and account management platform built with Django REST Framework and React.
 It combines secure JWT-based access, role-aware flows, profile controls, and account activity tracking.
 
@@ -134,6 +136,47 @@ cd frontend
 npm start
 ```
 
+Both options serve the API on port 8000 and the frontend on port 3000.
+
+### Tests
+
+Backend (Django test runner, 25 tests covering auth, permissions, and rate limiting):
+
+```bash
+cd backend
+python manage.py test
+```
+
+Frontend (Jest + React Testing Library, component and context coverage):
+
+```bash
+cd frontend
+npm test
+```
+
+End-to-end (Playwright, covers register -> logout -> login -> profile against a live backend):
+
+```bash
+# with the backend already running on :8000 (see Local Development above)
+cd frontend
+npm run test:e2e
+```
+
+Backend lint/format checks (also enforced in CI):
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+black --check . && isort --check-only . && ruff check .
+```
+
+Frontend lint/format checks:
+
+```bash
+cd frontend
+npm run lint && npm run format:check
+```
+
 ### Auth Monitoring
 
 - API health: `GET /health/`
@@ -200,17 +243,19 @@ user_management_system/
 - **Frontend:** React 19, TypeScript, React Router, Axios, React Bootstrap
 - **Backend:** Python 3.12, Django 4.2, Django REST Framework, SimpleJWT, django-cors-headers, WhiteNoise
 - **Database:** PostgreSQL (production/Docker), SQLite (local fallback)
-- **Testing:** React Testing Library setup, Django test framework setup
+- **Testing:** Django test framework, React Testing Library, Playwright (e2e)
+- **Linting/formatting:** black, ruff, isort (backend); ESLint, Prettier (frontend)
+- **CI:** GitHub Actions (lint + test on every push and PR)
 - **Deployment:** Vercel
 - **Containerization:** Docker, Docker Compose
 - **Package Managers:** npm (frontend), pip (backend)
 
 ## Future Improvements
 
-- Implement silent refresh flow on the frontend
+- Implement a silent refresh flow on the frontend - refresh tokens are already issued and rotated on login, but nothing consumes them yet, so a 401 just signs the user out instead of retrying
 - Add search and pagination controls for admin user management
 - Improve observability with structured logging and error tracking
-- Add CI checks for linting and automated tests
+- Run the Playwright e2e suite in CI (currently local-only, since it needs a live backend + database)
 
 ## Contributing
 
