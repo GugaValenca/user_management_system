@@ -1,37 +1,41 @@
-from rest_framework import status, generics
-from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.exceptions import TokenError
 from django.db import transaction
 from django.utils import timezone
+from rest_framework import generics, status
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
+
 from .models import User, UserActivityLog
 from .serializers import (
-    UserRegistrationSerializer, UserLoginSerializer,
-    UserProfileSerializer, PasswordChangeSerializer, UserActivityLogSerializer
+    PasswordChangeSerializer,
+    UserActivityLogSerializer,
+    UserLoginSerializer,
+    UserProfileSerializer,
+    UserRegistrationSerializer,
 )
 
 
 class LoginRateThrottle(AnonRateThrottle):
-    scope = 'login'
+    scope = "login"
 
 
 class RegisterRateThrottle(AnonRateThrottle):
-    scope = 'register'
+    scope = "register"
 
 
 class PasswordChangeRateThrottle(UserRateThrottle):
-    scope = 'password_change'
+    scope = "password_change"
 
 
 def get_client_ip(request):
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
     if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
+        ip = x_forwarded_for.split(",")[0]
     else:
-        ip = request.META.get('REMOTE_ADDR')
+        ip = request.META.get("REMOTE_ADDR")
     return ip
 
 
@@ -41,11 +45,11 @@ def log_user_activity(user, activity_type, description, request):
         activity_type=activity_type,
         description=description,
         ip_address=get_client_ip(request),
-        user_agent=request.META.get('HTTP_USER_AGENT', '')
+        user_agent=request.META.get("HTTP_USER_AGENT", ""),
     )
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([AllowAny])
 @throttle_classes([RegisterRateThrottle])
 def register_user(request):
@@ -53,68 +57,66 @@ def register_user(request):
     if serializer.is_valid():
         with transaction.atomic():
             user = serializer.save()
-            log_user_activity(
-                user, 'register', 'User registered successfully', request)
+            log_user_activity(user, "register", "User registered successfully", request)
 
             refresh = RefreshToken.for_user(user)
-            return Response({
-                'message': 'User created successfully',
-                'user': UserProfileSerializer(user).data,
-                'tokens': {
-                    'access': str(refresh.access_token),
-                    'refresh': str(refresh)
-                }
-            }, status=status.HTTP_201_CREATED)
+            return Response(
+                {
+                    "message": "User created successfully",
+                    "user": UserProfileSerializer(user).data,
+                    "tokens": {"access": str(refresh.access_token), "refresh": str(refresh)},
+                },
+                status=status.HTTP_201_CREATED,
+            )
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([AllowAny])
 @throttle_classes([LoginRateThrottle])
 def login_user(request):
     serializer = UserLoginSerializer(data=request.data)
     if serializer.is_valid():
-        user = serializer.validated_data['user']
+        user = serializer.validated_data["user"]
 
         # Django's session-based login() would normally update last_login and
         # start a session; we only use JWTs here, so update it manually instead.
         user.last_login = timezone.now()
         user.last_login_ip = get_client_ip(request)
-        user.save(update_fields=['last_login', 'last_login_ip'])
+        user.save(update_fields=["last_login", "last_login_ip"])
 
-        log_user_activity(
-            user, 'login', 'User logged in successfully', request)
+        log_user_activity(user, "login", "User logged in successfully", request)
 
         refresh = RefreshToken.for_user(user)
-        return Response({
-            'message': 'Login successful',
-            'user': UserProfileSerializer(user).data,
-            'tokens': {
-                'access': str(refresh.access_token),
-                'refresh': str(refresh)
+        return Response(
+            {
+                "message": "Login successful",
+                "user": UserProfileSerializer(user).data,
+                "tokens": {"access": str(refresh.access_token), "refresh": str(refresh)},
             }
-        })
+        )
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def logout_user(request):
     try:
-        refresh_token = request.data.get('refresh_token')
+        refresh_token = request.data.get("refresh_token")
         if not refresh_token:
-            return Response({'error': 'refresh_token is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "refresh_token is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         token = RefreshToken(refresh_token)
         token.blacklist()
 
-        log_user_activity(request.user, 'logout',
-                          'User logged out successfully', request)
-        return Response({'message': 'Logout successful'})
+        log_user_activity(request.user, "logout", "User logged out successfully", request)
+        return Response({"message": "Logout successful"})
     except TokenError:
-        return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
@@ -127,26 +129,25 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
         if response.status_code == 200:
-            log_user_activity(request.user, 'profile_update',
-                              'Profile updated successfully', request)
+            log_user_activity(
+                request.user, "profile_update", "Profile updated successfully", request
+            )
         return response
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 @throttle_classes([PasswordChangeRateThrottle])
 def change_password(request):
-    serializer = PasswordChangeSerializer(
-        data=request.data, context={'request': request})
+    serializer = PasswordChangeSerializer(data=request.data, context={"request": request})
     if serializer.is_valid():
         user = request.user
-        user.set_password(serializer.validated_data['new_password'])
+        user.set_password(serializer.validated_data["new_password"])
         user.save()
 
-        log_user_activity(user, 'password_change',
-                          'Password changed successfully', request)
+        log_user_activity(user, "password_change", "Password changed successfully", request)
 
-        return Response({'message': 'Password changed successfully'})
+        return Response({"message": "Password changed successfully"})
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -167,25 +168,27 @@ class AdminUserListView(generics.ListAPIView):
         return User.objects.all()
 
     def list(self, request, *args, **kwargs):
-        if request.user.role != 'admin':
-            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role != "admin":
+            return Response({"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
         return super().list(request, *args, **kwargs)
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def user_stats(request):
     user = request.user
-    if user.role != 'admin':
-        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+    if user.role != "admin":
+        return Response({"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
 
     total_users = User.objects.count()
     active_users = User.objects.filter(is_active=True).count()
-    admin_users = User.objects.filter(role='admin').count()
+    admin_users = User.objects.filter(role="admin").count()
 
-    return Response({
-        'total_users': total_users,
-        'active_users': active_users,
-        'admin_users': admin_users,
-        'inactive_users': total_users - active_users
-    })
+    return Response(
+        {
+            "total_users": total_users,
+            "active_users": active_users,
+            "admin_users": admin_users,
+            "inactive_users": total_users - active_users,
+        }
+    )

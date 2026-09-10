@@ -219,17 +219,13 @@ class ProfileTests(APITestCase):
         self.assertEqual(response.data["email"], self.user.email)
 
     def test_update_profile_logs_activity(self):
-        response = self.client.patch(
-            self.profile_url, {"bio": "Backend developer"}, format="json"
-        )
+        response = self.client.patch(self.profile_url, {"bio": "Backend developer"}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertEqual(self.user.bio, "Backend developer")
         self.assertTrue(
-            UserActivityLog.objects.filter(
-                user=self.user, activity_type="profile_update"
-            ).exists()
+            UserActivityLog.objects.filter(user=self.user, activity_type="profile_update").exists()
         )
 
     def test_update_profile_cannot_change_role(self):
@@ -268,9 +264,7 @@ class PasswordChangeTests(APITestCase):
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("NewPass456!"))
         self.assertTrue(
-            UserActivityLog.objects.filter(
-                user=self.user, activity_type="password_change"
-            ).exists()
+            UserActivityLog.objects.filter(user=self.user, activity_type="password_change").exists()
         )
 
     def test_change_password_rejects_wrong_old_password(self):

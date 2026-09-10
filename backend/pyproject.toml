@@ -1,0 +1,23 @@
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = '''
+/(
+  migrations
+  | venv
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+skip = ["venv", "migrations"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations", "venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "DJ"]
+ignore = ["E501"]

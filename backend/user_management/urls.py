@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 import django
-from accounts.models import UserActivityLog
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -10,6 +9,8 @@ from django.db.utils import OperationalError
 from django.http import JsonResponse
 from django.urls import include, path
 from django.utils import timezone
+
+from accounts.models import UserActivityLog
 
 
 def root_status(request):

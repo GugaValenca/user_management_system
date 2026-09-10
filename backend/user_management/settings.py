@@ -1,4 +1,3 @@
-import os
 from datetime import timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -69,6 +68,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "user_management.wsgi.application"
+
 
 def database_config_from_url(database_url: str):
     parsed = urlparse(database_url)
