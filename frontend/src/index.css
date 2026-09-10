@@ -10,3 +10,41 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
+
+/*
+ * Color and shape tokens for the app, layered on top of Bootstrap's own
+ * CSS variables (bootstrap.min.css defines these on :root, so redeclaring
+ * them here overrides every component that already consumes var(--bs-*)
+ * without needing a Sass rebuild). Palette matches the favicon: navy base,
+ * blue-to-teal gradient, warm accent for callouts.
+ */
+:root {
+  --bs-primary: #0d6efd;
+  --bs-primary-rgb: 13, 110, 253;
+  --bs-info: #20c997;
+  --bs-info-rgb: 32, 201, 151;
+  --bs-body-bg: #f5f7fb;
+  --bs-body-bg-rgb: 245, 247, 251;
+  --bs-border-radius: 0.6rem;
+  --bs-border-radius-lg: 0.85rem;
+  --ums-navy: #0b1220;
+  --ums-accent-gradient: linear-gradient(135deg, #0d6efd, #20c997);
+}
+
+.navbar.bg-dark {
+  background-color: var(--ums-navy) !important;
+  border-bottom: 3px solid transparent;
+  border-image: var(--ums-accent-gradient) 1;
+}
+
+.card {
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
