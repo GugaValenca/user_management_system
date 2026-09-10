@@ -15,14 +15,7 @@ import { authAPI } from "../services/api";
 import { User, UserStats } from "../types";
 
 type BadgeVariant =
-  | "primary"
-  | "secondary"
-  | "success"
-  | "danger"
-  | "warning"
-  | "info"
-  | "light"
-  | "dark";
+  "primary" | "secondary" | "success" | "danger" | "warning" | "info" | "light" | "dark";
 
 interface AdminStatsCardConfig {
   key: keyof UserStats;
@@ -230,13 +223,9 @@ const AdminPanel: React.FC = () => {
         </Col>
       </Row>
 
-      <UserDetailsModal
-        user={selectedUser}
-        onClose={() => setSelectedUser(null)}
-      />
+      <UserDetailsModal user={selectedUser} onClose={() => setSelectedUser(null)} />
     </Container>
   );
 };
 
 export default AdminPanel;
-

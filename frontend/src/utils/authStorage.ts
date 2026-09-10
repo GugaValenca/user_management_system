@@ -25,4 +25,3 @@ export const authStorage = {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
   },
 };
-

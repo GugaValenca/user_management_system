@@ -1,10 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
-} from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User, LoginCredentials, RegisterData } from "../types";
 import { authAPI } from "../services/api";
 import { authStorage } from "./authStorage";

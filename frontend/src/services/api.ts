@@ -17,8 +17,7 @@ const defaultApiBaseUrl =
 
 const configuredApiBaseUrl = (process.env.REACT_APP_API_BASE_URL || "").trim();
 const shouldIgnoreConfiguredLocalhostUrl =
-  window.location.hostname !== "localhost" &&
-  configuredApiBaseUrl.includes("localhost");
+  window.location.hostname !== "localhost" && configuredApiBaseUrl.includes("localhost");
 
 const API_BASE_URL = (
   shouldIgnoreConfiguredLocalhostUrl || !configuredApiBaseUrl
@@ -66,11 +65,7 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
-    if (
-      error.response?.status === 401 &&
-      originalRequest &&
-      !originalRequest._retry
-    ) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
 
       const refreshToken = authStorage.getRefreshToken();
@@ -114,8 +109,7 @@ export const authAPI = {
     old_password: string;
     new_password: string;
     new_password_confirm: string;
-  }): Promise<void> =>
-    getResponseData(api.post("/auth/change-password/", data)),
+  }): Promise<void> => getResponseData(api.post("/auth/change-password/", data)),
 
   getActivityLogs: (): Promise<ActivityLog[]> =>
     getListData(api.get("/auth/activity-logs/")),

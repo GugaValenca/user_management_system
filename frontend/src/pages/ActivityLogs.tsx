@@ -1,13 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Table,
-  Badge,
-  Alert,
-} from "react-bootstrap";
+import { Container, Row, Col, Card, Table, Badge, Alert } from "react-bootstrap";
 import { authAPI } from "../services/api";
 import { ActivityLog } from "../types";
 import { FaHistory, FaClock, FaMapMarkerAlt } from "react-icons/fa";
@@ -66,9 +58,7 @@ const ActivityLogs: React.FC = () => {
             <FaHistory className="me-2" />
             Activity Logs
           </h1>
-          <p className="text-muted">
-            Track your account activity and security events
-          </p>
+          <p className="text-muted">Track your account activity and security events</p>
         </Col>
       </Row>
 

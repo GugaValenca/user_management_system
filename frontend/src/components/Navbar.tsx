@@ -25,9 +25,7 @@ const Navigation: React.FC = () => {
                 <Nav.Link href="/dashboard">Dashboard</Nav.Link>
                 <Nav.Link href="/profile">Profile</Nav.Link>
                 <Nav.Link href="/activity">Activity Logs</Nav.Link>
-                {user?.role === "admin" && (
-                  <Nav.Link href="/admin">Admin Panel</Nav.Link>
-                )}
+                {user?.role === "admin" && <Nav.Link href="/admin">Admin Panel</Nav.Link>}
               </Nav>
               <Nav>
                 <NavDropdown

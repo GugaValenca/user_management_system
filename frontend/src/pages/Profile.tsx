@@ -121,8 +121,7 @@ const Profile: React.FC = () => {
         response?: { data?: { old_password?: string[] } };
       };
       setErrorMessage(
-        maybeAxiosError.response?.data?.old_password?.[0] ||
-          "Failed to change password"
+        maybeAxiosError.response?.data?.old_password?.[0] || "Failed to change password"
       );
     } finally {
       setIsSubmitting(false);
@@ -305,4 +304,3 @@ const Profile: React.FC = () => {
 };
 
 export default Profile;
-

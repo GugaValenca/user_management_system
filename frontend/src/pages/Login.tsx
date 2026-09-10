@@ -1,13 +1,5 @@
 import React, { useState } from "react";
-import {
-  Container,
-  Row,
-  Col,
-  Card,
-  Form,
-  Button,
-  Alert,
-} from "react-bootstrap";
+import { Container, Row, Col, Card, Form, Button, Alert } from "react-bootstrap";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../utils/AuthContext";
 import { FaEnvelope, FaLock } from "react-icons/fa";
@@ -49,9 +41,7 @@ const Login: React.FC = () => {
             <Card.Body className="p-4">
               <div className="text-center mb-4">
                 <h2>Login</h2>
-                <p className="text-muted">
-                  Welcome back! Please login to your account.
-                </p>
+                <p className="text-muted">Welcome back! Please login to your account.</p>
               </div>
 
               {error && <Alert variant="danger">{error}</Alert>}

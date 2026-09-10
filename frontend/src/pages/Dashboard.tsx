@@ -3,13 +3,7 @@ import { Container, Row, Col, Card, Alert } from "react-bootstrap";
 import { useAuth } from "../utils/AuthContext";
 import { authAPI } from "../services/api";
 import { UserStats } from "../types";
-import {
-  FaUsers,
-  FaUserCheck,
-  FaUserShield,
-  FaUserTimes,
-  FaUser,
-} from "react-icons/fa";
+import { FaUsers, FaUserCheck, FaUserShield, FaUserTimes, FaUser } from "react-icons/fa";
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -36,9 +30,7 @@ const Dashboard: React.FC = () => {
       <Row className="mb-4">
         <Col>
           <h1>Dashboard</h1>
-          <p className="text-muted">
-            Welcome back, {user?.full_name || user?.email}!
-          </p>
+          <p className="text-muted">Welcome back, {user?.full_name || user?.email}!</p>
         </Col>
       </Row>
 
