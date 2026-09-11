@@ -18,7 +18,7 @@ test("register, logout, and login again with the same account", async ({ page })
   await page.getByLabel(/^username$/i).fill(username);
   await page.getByLabel(/^email$/i).fill(email);
   await page.getByLabel(/^password$/i).fill(password);
-  await page.getByLabel(/confirm password/i).fill(password);
+  await page.getByLabel(/^confirm password$/i).fill(password);
   await page.getByRole("button", { name: /create account/i }).click();
 
   await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible();
@@ -30,7 +30,7 @@ test("register, logout, and login again with the same account", async ({ page })
 
   await page.getByLabel(/email or username/i).fill(email);
   await page.getByLabel(/^password$/i).fill(password);
-  await page.getByRole("button", { name: /sign in/i }).click();
+  await page.getByRole("button", { name: /^login$/i }).click();
 
   await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible();
 

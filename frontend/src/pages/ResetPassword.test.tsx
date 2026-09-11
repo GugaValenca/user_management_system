@@ -41,7 +41,7 @@ describe("ResetPassword", () => {
 
     renderPage();
     userEvent.type(screen.getByLabelText(/^new password$/i), "NewPass123!");
-    userEvent.type(screen.getByLabelText(/confirm new password/i), "NewPass123!");
+    userEvent.type(screen.getByLabelText(/^confirm new password$/i), "NewPass123!");
     userEvent.click(screen.getByRole("button", { name: /reset password/i }));
 
     await waitFor(() => {
@@ -58,7 +58,7 @@ describe("ResetPassword", () => {
   it("rejects mismatched passwords before calling the API", async () => {
     renderPage();
     userEvent.type(screen.getByLabelText(/^new password$/i), "NewPass123!");
-    userEvent.type(screen.getByLabelText(/confirm new password/i), "Different456!");
+    userEvent.type(screen.getByLabelText(/^confirm new password$/i), "Different456!");
     userEvent.click(screen.getByRole("button", { name: /reset password/i }));
 
     await waitFor(() => {
@@ -76,7 +76,7 @@ describe("ResetPassword", () => {
 
     renderPage();
     userEvent.type(screen.getByLabelText(/^new password$/i), "NewPass123!");
-    userEvent.type(screen.getByLabelText(/confirm new password/i), "NewPass123!");
+    userEvent.type(screen.getByLabelText(/^confirm new password$/i), "NewPass123!");
     userEvent.click(screen.getByRole("button", { name: /reset password/i }));
 
     await waitFor(() => {

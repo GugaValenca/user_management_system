@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { Container, Row, Col, Card, Form, Button, Alert } from "react-bootstrap";
+import { Form, Button, Alert } from "react-bootstrap";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FaLock } from "react-icons/fa";
 import { authAPI } from "../services/api";
+import AuthLayout from "../components/AuthLayout";
+import AuthField from "../components/AuthField";
 
 const ResetPassword: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -52,75 +54,51 @@ const ResetPassword: React.FC = () => {
   };
 
   return (
-    <Container className="mt-5">
-      <Row className="justify-content-center">
-        <Col md={6} lg={4}>
-          <Card>
-            <Card.Body className="p-4">
-              <div className="text-center mb-4">
-                <h2>Reset Password</h2>
-                <p className="text-muted">Choose a new password for your account.</p>
-              </div>
+    <AuthLayout
+      title="Reset Password"
+      subtitle="Choose a new password for your account."
+      footer={<Link to="/login">Back to login</Link>}
+    >
+      {message && <Alert variant="success">{message}</Alert>}
+      {error && <Alert variant="danger">{error}</Alert>}
+      {linkIsMissingParams && !message && (
+        <Alert variant="danger">
+          This link is missing required information. Please request a new one.
+        </Alert>
+      )}
 
-              {message && <Alert variant="success">{message}</Alert>}
-              {error && <Alert variant="danger">{error}</Alert>}
-              {linkIsMissingParams && !message && (
-                <Alert variant="danger">
-                  This link is missing required information. Please request a new one.
-                </Alert>
-              )}
+      {!message && !linkIsMissingParams && (
+        <Form onSubmit={handleSubmit}>
+          <AuthField
+            controlId="resetNewPassword"
+            label="New Password"
+            icon={<FaLock />}
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="New Password"
+            required
+            autoComplete="new-password"
+          />
 
-              {!message && !linkIsMissingParams && (
-                <Form onSubmit={handleSubmit}>
-                  <Form.Group className="mb-3" controlId="resetNewPassword">
-                    <Form.Label>
-                      <FaLock className="me-2" />
-                      New Password
-                    </Form.Label>
-                    <Form.Control
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      required
-                      placeholder="Enter a new password"
-                    />
-                  </Form.Group>
+          <AuthField
+            controlId="resetNewPasswordConfirm"
+            label="Confirm New Password"
+            icon={<FaLock />}
+            type="password"
+            value={newPasswordConfirm}
+            onChange={(e) => setNewPasswordConfirm(e.target.value)}
+            placeholder="Confirm New Password"
+            required
+            autoComplete="new-password"
+          />
 
-                  <Form.Group className="mb-3" controlId="resetNewPasswordConfirm">
-                    <Form.Label>
-                      <FaLock className="me-2" />
-                      Confirm New Password
-                    </Form.Label>
-                    <Form.Control
-                      type="password"
-                      value={newPasswordConfirm}
-                      onChange={(e) => setNewPasswordConfirm(e.target.value)}
-                      required
-                      placeholder="Confirm your new password"
-                    />
-                  </Form.Group>
-
-                  <Button
-                    variant="primary"
-                    type="submit"
-                    className="w-100 mb-3"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? "Resetting..." : "Reset password"}
-                  </Button>
-                </Form>
-              )}
-
-              <div className="text-center">
-                <Link to="/login" className="text-decoration-none">
-                  Back to login
-                </Link>
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+          <Button type="submit" className="auth-submit-btn" disabled={isLoading}>
+            {isLoading ? "Resetting..." : "Reset Password"}
+          </Button>
+        </Form>
+      )}
+    </AuthLayout>
   );
 };
 

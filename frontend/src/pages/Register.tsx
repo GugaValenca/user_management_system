@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { Container, Row, Col, Card, Form, Button, Alert } from "react-bootstrap";
+import { Form, Button, Alert } from "react-bootstrap";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../utils/AuthContext";
 import { FaUser, FaEnvelope, FaLock } from "react-icons/fa";
+import AuthLayout from "../components/AuthLayout";
+import AuthField from "../components/AuthField";
 
 const Register: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -52,144 +54,101 @@ const Register: React.FC = () => {
   };
 
   return (
-    <Container className="mt-5">
-      <Row className="justify-content-center">
-        <Col md={8} lg={6}>
-          <Card>
-            <Card.Body className="p-4">
-              <div className="text-center mb-4">
-                <h2>Create Account</h2>
-                <p className="text-muted">
-                  Join us today! Please fill in your information.
-                </p>
-              </div>
+    <AuthLayout
+      title="Create Account"
+      subtitle="Join us today! Please fill in your information."
+      wide
+      footer={
+        <>
+          Already have an account? <Link to="/login">Sign in</Link>
+        </>
+      }
+    >
+      {error && <Alert variant="danger">{error}</Alert>}
 
-              {error && <Alert variant="danger">{error}</Alert>}
+      <Form onSubmit={handleSubmit}>
+        <div className="auth-field-pair">
+          <AuthField
+            controlId="registerFirstName"
+            label="First Name"
+            icon={<FaUser />}
+            name="first_name"
+            value={formData.first_name}
+            onChange={handleChange}
+            placeholder="First Name"
+            required
+            autoComplete="given-name"
+          />
+          <AuthField
+            controlId="registerLastName"
+            label="Last Name"
+            icon={<FaUser />}
+            name="last_name"
+            value={formData.last_name}
+            onChange={handleChange}
+            placeholder="Last Name"
+            required
+            autoComplete="family-name"
+          />
+        </div>
 
-              <Form onSubmit={handleSubmit}>
-                <Row>
-                  <Col md={6}>
-                    <Form.Group className="mb-3" controlId="registerFirstName">
-                      <Form.Label>
-                        <FaUser className="me-2" />
-                        First Name
-                      </Form.Label>
-                      <Form.Control
-                        type="text"
-                        name="first_name"
-                        value={formData.first_name}
-                        onChange={handleChange}
-                        required
-                        placeholder="Enter your first name"
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col md={6}>
-                    <Form.Group className="mb-3" controlId="registerLastName">
-                      <Form.Label>
-                        <FaUser className="me-2" />
-                        Last Name
-                      </Form.Label>
-                      <Form.Control
-                        type="text"
-                        name="last_name"
-                        value={formData.last_name}
-                        onChange={handleChange}
-                        required
-                        placeholder="Enter your last name"
-                      />
-                    </Form.Group>
-                  </Col>
-                </Row>
+        <AuthField
+          controlId="registerUsername"
+          label="Username"
+          icon={<FaUser />}
+          name="username"
+          value={formData.username}
+          onChange={handleChange}
+          placeholder="Username"
+          required
+          autoComplete="username"
+        />
 
-                <Form.Group className="mb-3" controlId="registerUsername">
-                  <Form.Label>
-                    <FaUser className="me-2" />
-                    Username
-                  </Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleChange}
-                    required
-                    placeholder="Choose a username"
-                  />
-                </Form.Group>
+        <AuthField
+          controlId="registerEmail"
+          label="Email"
+          icon={<FaEnvelope />}
+          type="email"
+          name="email"
+          value={formData.email}
+          onChange={handleChange}
+          placeholder="Email"
+          required
+          autoComplete="email"
+        />
 
-                <Form.Group className="mb-3" controlId="registerEmail">
-                  <Form.Label>
-                    <FaEnvelope className="me-2" />
-                    Email
-                  </Form.Label>
-                  <Form.Control
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    placeholder="Enter your email"
-                  />
-                </Form.Group>
+        <div className="auth-field-pair">
+          <AuthField
+            controlId="registerPassword"
+            label="Password"
+            icon={<FaLock />}
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            placeholder="Password"
+            required
+            autoComplete="new-password"
+          />
+          <AuthField
+            controlId="registerPasswordConfirm"
+            label="Confirm Password"
+            icon={<FaLock />}
+            type="password"
+            name="password_confirm"
+            value={formData.password_confirm}
+            onChange={handleChange}
+            placeholder="Confirm Password"
+            required
+            autoComplete="new-password"
+          />
+        </div>
 
-                <Row>
-                  <Col md={6}>
-                    <Form.Group className="mb-3" controlId="registerPassword">
-                      <Form.Label>
-                        <FaLock className="me-2" />
-                        Password
-                      </Form.Label>
-                      <Form.Control
-                        type="password"
-                        name="password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        required
-                        placeholder="Create a password"
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col md={6}>
-                    <Form.Group className="mb-3" controlId="registerPasswordConfirm">
-                      <Form.Label>
-                        <FaLock className="me-2" />
-                        Confirm Password
-                      </Form.Label>
-                      <Form.Control
-                        type="password"
-                        name="password_confirm"
-                        value={formData.password_confirm}
-                        onChange={handleChange}
-                        required
-                        placeholder="Confirm your password"
-                      />
-                    </Form.Group>
-                  </Col>
-                </Row>
-
-                <Button
-                  variant="primary"
-                  type="submit"
-                  className="w-100 mb-3"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Creating Account..." : "Create Account"}
-                </Button>
-              </Form>
-
-              <div className="text-center">
-                <p>
-                  Already have an account?{" "}
-                  <Link to="/login" className="text-decoration-none">
-                    Sign in here
-                  </Link>
-                </p>
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+        <Button type="submit" className="auth-submit-btn" disabled={isLoading}>
+          {isLoading ? "Creating Account..." : "Create Account"}
+        </Button>
+      </Form>
+    </AuthLayout>
   );
 };
 

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Container, Row, Col, Card, Alert, Spinner } from "react-bootstrap";
+import { Alert, Spinner } from "react-bootstrap";
 import { Link, useSearchParams } from "react-router-dom";
 import { authAPI } from "../services/api";
+import AuthLayout from "../components/AuthLayout";
 
 type VerificationState = "verifying" | "success" | "error";
 
@@ -40,33 +41,22 @@ const VerifyEmail: React.FC = () => {
   }, [uid, token]);
 
   return (
-    <Container className="mt-5">
-      <Row className="justify-content-center">
-        <Col md={6} lg={4}>
-          <Card>
-            <Card.Body className="p-4 text-center">
-              <h2 className="mb-4">Email Verification</h2>
+    <AuthLayout
+      title="Email Verification"
+      footer={<Link to="/dashboard">Go to Dashboard</Link>}
+    >
+      <div className="text-center">
+        {state === "verifying" && (
+          <>
+            <Spinner animation="border" className="mb-3" style={{ color: "#6ea8ff" }} />
+            <p className="auth-subtitle mb-0">Verifying your email...</p>
+          </>
+        )}
 
-              {state === "verifying" && (
-                <>
-                  <Spinner animation="border" className="mb-3" />
-                  <p className="text-muted">Verifying your email...</p>
-                </>
-              )}
-
-              {state === "success" && <Alert variant="success">{message}</Alert>}
-              {state === "error" && <Alert variant="danger">{message}</Alert>}
-
-              {state !== "verifying" && (
-                <Link to="/dashboard" className="btn btn-primary">
-                  Go to Dashboard
-                </Link>
-              )}
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+        {state === "success" && <Alert variant="success">{message}</Alert>}
+        {state === "error" && <Alert variant="danger">{message}</Alert>}
+      </div>
+    </AuthLayout>
   );
 };
 

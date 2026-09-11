@@ -1,8 +1,10 @@
 import React, { useState } from "react";
-import { Container, Row, Col, Card, Form, Button, Alert } from "react-bootstrap";
+import { Form, Button, Alert } from "react-bootstrap";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../utils/AuthContext";
 import { FaEnvelope, FaLock } from "react-icons/fa";
+import AuthLayout from "../components/AuthLayout";
+import AuthField from "../components/AuthField";
 
 const Login: React.FC = () => {
   const [identifier, setIdentifier] = useState("");
@@ -34,75 +36,51 @@ const Login: React.FC = () => {
   };
 
   return (
-    <Container className="mt-5">
-      <Row className="justify-content-center">
-        <Col md={6} lg={4}>
-          <Card>
-            <Card.Body className="p-4">
-              <div className="text-center mb-4">
-                <h2>Login</h2>
-                <p className="text-muted">Welcome back! Please login to your account.</p>
-              </div>
+    <AuthLayout
+      title="Login"
+      subtitle="Welcome back! Please sign in to your account."
+      footer={
+        <>
+          Don't have an account? <Link to="/register">Sign up</Link>
+        </>
+      }
+    >
+      {error && <Alert variant="danger">{error}</Alert>}
 
-              {error && <Alert variant="danger">{error}</Alert>}
+      <Form onSubmit={handleSubmit}>
+        <AuthField
+          controlId="loginIdentifier"
+          label="Email or Username"
+          icon={<FaEnvelope />}
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          placeholder="Email or Username"
+          required
+          autoComplete="username"
+        />
 
-              <Form onSubmit={handleSubmit}>
-                <Form.Group className="mb-3" controlId="loginIdentifier">
-                  <Form.Label>
-                    <FaEnvelope className="me-2" />
-                    Email or Username
-                  </Form.Label>
-                  <Form.Control
-                    type="text"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    required
-                    placeholder="Enter your email or username"
-                  />
-                </Form.Group>
+        <AuthField
+          controlId="loginPassword"
+          label="Password"
+          icon={<FaLock />}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
+          required
+          autoComplete="current-password"
+        />
 
-                <Form.Group className="mb-3" controlId="loginPassword">
-                  <Form.Label>
-                    <FaLock className="me-2" />
-                    Password
-                  </Form.Label>
-                  <Form.Control
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    placeholder="Enter your password"
-                  />
-                  <div className="text-end mt-1">
-                    <Link to="/forgot-password" className="text-decoration-none small">
-                      Forgot password?
-                    </Link>
-                  </div>
-                </Form.Group>
+        <div className="auth-row-between">
+          <span />
+          <Link to="/forgot-password">Forgot Password?</Link>
+        </div>
 
-                <Button
-                  variant="primary"
-                  type="submit"
-                  className="w-100 mb-3"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Signing in..." : "Sign In"}
-                </Button>
-              </Form>
-
-              <div className="text-center">
-                <p>
-                  Don't have an account?{" "}
-                  <Link to="/register" className="text-decoration-none">
-                    Sign up here
-                  </Link>
-                </p>
-              </div>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+        <Button type="submit" className="auth-submit-btn" disabled={isLoading}>
+          {isLoading ? "Signing in..." : "Login"}
+        </Button>
+      </Form>
+    </AuthLayout>
   );
 };
 
