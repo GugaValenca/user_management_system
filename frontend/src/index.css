@@ -15,24 +15,24 @@ code {
  * Color and shape tokens for the app, layered on top of Bootstrap's own
  * CSS variables (bootstrap.min.css defines these on :root, so redeclaring
  * them here overrides every component that already consumes var(--bs-*)
- * without needing a Sass rebuild). Palette matches the favicon: navy base,
- * blue-to-teal gradient, warm accent for callouts.
+ * without needing a Sass rebuild). Deep violet base with a violet-to-pink
+ * accent gradient - matches the logo mark, not stock Bootstrap blue.
  */
 :root {
-  --bs-primary: #0d6efd;
-  --bs-primary-rgb: 13, 110, 253;
-  --bs-info: #20c997;
-  --bs-info-rgb: 32, 201, 151;
-  --bs-body-bg: #f5f7fb;
-  --bs-body-bg-rgb: 245, 247, 251;
+  --bs-primary: #7c3aed;
+  --bs-primary-rgb: 124, 58, 237;
+  --bs-info: #ec4899;
+  --bs-info-rgb: 236, 72, 153;
+  --bs-body-bg: #f7f5fb;
+  --bs-body-bg-rgb: 247, 245, 251;
   --bs-border-radius: 0.6rem;
   --bs-border-radius-lg: 0.85rem;
-  --ums-navy: #0b1220;
-  --ums-accent-gradient: linear-gradient(135deg, #0d6efd, #20c997);
+  --ums-ink: #150f2e;
+  --ums-accent-gradient: linear-gradient(135deg, #8b5cf6, #f472b6);
 }
 
 .navbar.bg-dark {
-  background-color: var(--ums-navy) !important;
+  background-color: var(--ums-ink) !important;
   border-bottom: 3px solid transparent;
   border-image: var(--ums-accent-gradient) 1;
 }
