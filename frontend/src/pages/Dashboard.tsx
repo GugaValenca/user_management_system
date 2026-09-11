@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Container, Row, Col, Card, Alert } from "react-bootstrap";
+import { Container, Row, Col, Card, Alert, Button } from "react-bootstrap";
 import { useAuth } from "../utils/AuthContext";
 import { authAPI } from "../services/api";
 import { UserStats } from "../types";
@@ -9,6 +9,8 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [error, setError] = useState("");
+  const [isResending, setIsResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -25,6 +27,19 @@ const Dashboard: React.FC = () => {
     fetchStats();
   }, [user]);
 
+  const handleResendVerification = async () => {
+    setIsResending(true);
+    setResendMessage("");
+    try {
+      const response = await authAPI.resendEmailVerification();
+      setResendMessage(response.message);
+    } catch {
+      setResendMessage("Failed to send verification email. Please try again later.");
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   return (
     <Container>
       <Row className="mb-4">
@@ -35,6 +50,27 @@ const Dashboard: React.FC = () => {
       </Row>
 
       {error && <Alert variant="danger">{error}</Alert>}
+
+      {user && !user.is_email_verified && (
+        <Alert
+          variant="warning"
+          className="d-flex justify-content-between align-items-center flex-wrap gap-2"
+        >
+          <span>Please verify your email address to secure your account.</span>
+          {resendMessage ? (
+            <span className="fw-semibold">{resendMessage}</span>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline-dark"
+              onClick={handleResendVerification}
+              disabled={isResending}
+            >
+              {isResending ? "Sending..." : "Resend verification email"}
+            </Button>
+          )}
+        </Alert>
+      )}
 
       <Row className="mb-4">
         <Col md={6} lg={3} className="mb-3">

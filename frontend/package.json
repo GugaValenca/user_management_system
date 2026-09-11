@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
+    "axios-mock-adapter": "^1.22.0",
     "prettier": "^3.9.6"
   },
   "scripts": {

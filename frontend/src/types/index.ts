@@ -11,6 +11,7 @@ export interface User {
   date_of_birth?: string;
   bio?: string;
   is_email_verified: boolean;
+  is_active: boolean;
   last_login?: string;
   created_at: string;
   updated_at: string;
@@ -53,4 +54,35 @@ export interface UserStats {
   active_users: number;
   admin_users: number;
   inactive_users: number;
+}
+
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
+export interface PasswordResetConfirmData {
+  uid: string;
+  token: string;
+  new_password: string;
+  new_password_confirm: string;
+}
+
+export interface EmailVerificationConfirmData {
+  uid: string;
+  token: string;
+}
+
+export interface AdminUserUpdateData {
+  role?: User["role"];
+  is_active?: boolean;
+}
+
+export interface AdminUserListParams {
+  page?: number;
+  search?: string;
+  role?: User["role"] | "";
+  is_active?: "true" | "false" | "";
 }

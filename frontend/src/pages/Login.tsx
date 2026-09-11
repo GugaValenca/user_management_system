@@ -73,6 +73,11 @@ const Login: React.FC = () => {
                     required
                     placeholder="Enter your password"
                   />
+                  <div className="text-end mt-1">
+                    <Link to="/forgot-password" className="text-decoration-none small">
+                      Forgot password?
+                    </Link>
+                  </div>
                 </Form.Group>
 
                 <Button

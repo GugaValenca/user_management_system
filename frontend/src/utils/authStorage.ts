@@ -20,6 +20,10 @@ export const authStorage = {
     localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh);
   },
 
+  setAccessToken(access: string): void {
+    localStorage.setItem(ACCESS_TOKEN_KEY, access);
+  },
+
   clearTokens(): void {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
