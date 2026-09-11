@@ -1,6 +1,8 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from .validators import validate_profile_picture_size
+
 
 class User(AbstractUser):
     USER_ROLES = [
@@ -13,7 +15,12 @@ class User(AbstractUser):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     role = models.CharField(max_length=20, choices=USER_ROLES, default="user")
-    profile_picture = models.ImageField(upload_to="profile_pics/", blank=True, null=True)
+    profile_picture = models.ImageField(
+        upload_to="profile_pics/",
+        blank=True,
+        null=True,
+        validators=[validate_profile_picture_size],
+    )
     phone_number = models.CharField(max_length=15, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     bio = models.TextField(max_length=500, blank=True)
