@@ -34,14 +34,17 @@ The public demo is focused on the main user workflow. Administrative tools are r
 
 ## Features
 
-- JWT authentication (register, login, logout with token blacklist)
+- JWT authentication with silent token refresh (register, login, logout with token blacklist)
 - Custom user model with email-based authentication
 - Role-based access control (`user`, `moderator`, `admin`)
+- Email verification on signup, with a resend option
+- Self-service password reset via emailed link
 - Profile editing and secure password change flow
-- Activity logging for key account security events
-- Admin-only endpoints for user listing and high-level stats
+- Activity logging for key account security events (login, password reset, email verified, admin changes, ...)
+- Admin panel with search/filtering, pagination, and the ability to change a user's role or activate/deactivate their account (an admin can't do either to their own account)
 - Frontend route guards for authenticated and admin-only screens
 - Production-ready API integration with Axios and typed request/response models
+- OpenAPI schema and interactive docs at `/api/docs/`
 
 ## Screenshots
 
@@ -140,7 +143,7 @@ Both options serve the API on port 8000 and the frontend on port 3000.
 
 ### Tests
 
-Backend (Django test runner, 25 tests covering auth, permissions, and rate limiting):
+Backend (Django test runner, 50 tests covering auth, permissions, rate limiting, password reset, email verification, and admin actions):
 
 ```bash
 cd backend
@@ -176,6 +179,10 @@ Frontend lint/format checks:
 cd frontend
 npm run lint && npm run format:check
 ```
+
+### API Documentation
+
+Interactive Swagger UI at `/api/docs/` (schema at `/api/schema/`), generated from the actual DRF views via drf-spectacular - always in sync with the code.
 
 ### Auth Monitoring
 
@@ -252,10 +259,11 @@ user_management_system/
 
 ## Future Improvements
 
-- Implement a silent refresh flow on the frontend - refresh tokens are already issued and rotated on login, but nothing consumes them yet, so a 401 just signs the user out instead of retrying
-- Add search and pagination controls for admin user management
-- Improve observability with structured logging and error tracking
+- Improve observability with structured logging and error tracking (e.g. Sentry)
 - Run the Playwright e2e suite in CI (currently local-only, since it needs a live backend + database)
+- Two-factor authentication (TOTP)
+- Let a user view and revoke their own active sessions (the token blacklist infrastructure is already in place)
+- Profile picture upload from the frontend (the backend already supports it)
 
 ## Contributing
 
