@@ -1,44 +1,62 @@
-import React, { useState, useEffect } from "react";
-import { Container, Row, Col, Card, Table, Badge, Alert } from "react-bootstrap";
+import React, { useState, useEffect, useMemo } from "react";
+import { Container, Row, Col, Card, Table, Badge, Alert, Button } from "react-bootstrap";
 import { authAPI } from "../services/api";
 import { ActivityLog } from "../types";
 import { FaHistory, FaClock, FaMapMarkerAlt } from "react-icons/fa";
 
+const PAGE_SIZE = 20;
+
+const ACTIVITY_BADGE_VARIANTS: { [key: string]: string } = {
+  login: "success",
+  logout: "secondary",
+  register: "success",
+  profile_update: "info",
+  password_change: "warning",
+  password_reset: "warning",
+  email_change: "primary",
+  email_verified: "success",
+  admin_update: "dark",
+};
+
+const getActivityBadge = (activityType: string) =>
+  ACTIVITY_BADGE_VARIANTS[activityType] || "light";
+
+const formatDate = (dateString: string) => new Date(dateString).toLocaleString();
+
 const ActivityLogs: React.FC = () => {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
+    [totalCount]
+  );
+
   useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const logsData = await authAPI.getActivityLogs();
-        setLogs(logsData);
-      } catch (error: any) {
-        setError("Failed to load activity logs");
-      } finally {
-        setIsLoading(false);
-      }
+    let cancelled = false;
+    setIsLoading(true);
+
+    authAPI
+      .getActivityLogs(page)
+      .then((data) => {
+        if (cancelled) return;
+        setLogs(data.results);
+        setTotalCount(data.count);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Failed to load activity logs");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
     };
-
-    fetchLogs();
-  }, []);
-
-  const getActivityBadge = (activityType: string) => {
-    const badgeMap: { [key: string]: string } = {
-      login: "success",
-      logout: "secondary",
-      profile_update: "info",
-      password_change: "warning",
-      email_change: "primary",
-      register: "success",
-    };
-    return badgeMap[activityType] || "light";
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
-  };
+  }, [page]);
 
   if (isLoading) {
     return (
@@ -96,7 +114,7 @@ const ActivityLogs: React.FC = () => {
                       <tr key={log.id}>
                         <td>
                           <Badge bg={getActivityBadge(log.activity_type)}>
-                            {log.activity_type.replace("_", " ").toUpperCase()}
+                            {log.activity_type.replace(/_/g, " ").toUpperCase()}
                           </Badge>
                         </td>
                         <td>{log.description}</td>
@@ -110,6 +128,31 @@ const ActivityLogs: React.FC = () => {
                 </Table>
               )}
             </Card.Body>
+            <Card.Footer className="d-flex justify-content-between align-items-center">
+              <small className="text-muted">
+                {totalCount === 0
+                  ? "No results"
+                  : `Page ${page} of ${totalPages} (${totalCount} total)`}
+              </small>
+              <div className="d-flex gap-2">
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </Card.Footer>
           </Card>
         </Col>
       </Row>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Container,
   Row,
@@ -9,9 +9,13 @@ import {
   Alert,
   Button,
   Modal,
+  Form,
+  InputGroup,
+  Spinner,
 } from "react-bootstrap";
-import { FaUserShield, FaUsers, FaEye } from "react-icons/fa";
+import { FaUserShield, FaUsers, FaEye, FaSearch } from "react-icons/fa";
 import { authAPI } from "../services/api";
+import { useAuth } from "../utils/AuthContext";
 import { User, UserStats } from "../types";
 
 type BadgeVariant =
@@ -28,6 +32,8 @@ const ROLE_BADGE_VARIANTS: Record<User["role"], BadgeVariant> = {
   moderator: "warning",
   user: "primary",
 };
+
+const ROLE_OPTIONS: User["role"][] = ["user", "moderator", "admin"];
 
 const ADMIN_STATS_CARDS: AdminStatsCardConfig[] = [
   { key: "total_users", label: "Total Users", colorClass: "text-primary" },
@@ -63,7 +69,13 @@ const UserDetailsModal: React.FC<{
             <strong>Email:</strong> {user.email}
           </p>
           <p className="mb-2">
-            <strong>Role:</strong> {user.role}
+            <strong>Role:</strong>{" "}
+            <Badge bg={ROLE_BADGE_VARIANTS[user.role] ?? "secondary"}>
+              {user.role.toUpperCase()}
+            </Badge>
+          </p>
+          <p className="mb-2">
+            <strong>Account Status:</strong> {user.is_active ? "Active" : "Deactivated"}
           </p>
           <p className="mb-2">
             <strong>Email Verified:</strong> {user.is_email_verified ? "Yes" : "No"}
@@ -88,31 +100,107 @@ const UserDetailsModal: React.FC<{
   </Modal>
 );
 
+const PAGE_SIZE = 20;
+
 const AdminPanel: React.FC = () => {
+  const { user: currentUser } = useAuth();
+
   const [users, setUsers] = useState<User[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
   const [stats, setStats] = useState<UserStats | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isTableLoading, setIsTableLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [pendingActionUserId, setPendingActionUserId] = useState<number | null>(null);
+
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<User["role"] | "">("");
+  const [activeFilter, setActiveFilter] = useState<"true" | "false" | "">("");
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
+    [totalCount]
+  );
 
   useEffect(() => {
-    const loadAdminData = async () => {
-      try {
-        const [allUsers, userStats] = await Promise.all([
-          authAPI.getAllUsers(),
-          authAPI.getUserStats(),
-        ]);
-        setUsers(allUsers);
-        setStats(userStats);
-      } catch {
-        setErrorMessage("Failed to load admin data");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadAdminData();
+    authAPI
+      .getUserStats()
+      .then(setStats)
+      .catch(() => setErrorMessage("Failed to load statistics"));
   }, []);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setPage(1);
+      setSearch(searchInput.trim());
+    }, 400);
+    return () => clearTimeout(timeoutId);
+  }, [searchInput]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsTableLoading(true);
+
+    authAPI
+      .getAllUsers({ page, search, role: roleFilter, is_active: activeFilter })
+      .then((data) => {
+        if (cancelled) return;
+        setUsers(data.results);
+        setTotalCount(data.count);
+      })
+      .catch(() => {
+        if (!cancelled) setErrorMessage("Failed to load users");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsTableLoading(false);
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [page, search, roleFilter, activeFilter]);
+
+  const applyUserUpdate = (userId: number, updatedFields: Partial<User>) => {
+    setUsers((current) =>
+      current.map((u) => (u.id === userId ? { ...u, ...updatedFields } : u))
+    );
+  };
+
+  const handleRoleChange = async (targetUser: User, role: User["role"]) => {
+    setActionError("");
+    setPendingActionUserId(targetUser.id);
+    try {
+      const updated = await authAPI.updateUser(targetUser.id, { role });
+      applyUserUpdate(targetUser.id, { role: updated.role });
+    } catch {
+      setActionError(`Failed to update role for ${targetUser.email}`);
+    } finally {
+      setPendingActionUserId(null);
+    }
+  };
+
+  const handleToggleActive = async (targetUser: User) => {
+    setActionError("");
+    setPendingActionUserId(targetUser.id);
+    try {
+      const updated = await authAPI.updateUser(targetUser.id, {
+        is_active: !targetUser.is_active,
+      });
+      applyUserUpdate(targetUser.id, { is_active: updated.is_active });
+    } catch {
+      setActionError(`Failed to update status for ${targetUser.email}`);
+    } finally {
+      setPendingActionUserId(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -137,6 +225,11 @@ const AdminPanel: React.FC = () => {
       </Row>
 
       {errorMessage && <Alert variant="danger">{errorMessage}</Alert>}
+      {actionError && (
+        <Alert variant="danger" dismissible onClose={() => setActionError("")}>
+          {actionError}
+        </Alert>
+      )}
 
       {stats && (
         <Row className="mb-4">
@@ -162,7 +255,64 @@ const AdminPanel: React.FC = () => {
                 User Management
               </h5>
             </Card.Header>
-            <Card.Body className="p-0">
+            <Card.Body>
+              <Row className="mb-3 g-2">
+                <Col md={5}>
+                  <InputGroup>
+                    <InputGroup.Text>
+                      <FaSearch />
+                    </InputGroup.Text>
+                    <Form.Control
+                      type="search"
+                      placeholder="Search by name, username, or email"
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      aria-label="Search users"
+                    />
+                  </InputGroup>
+                </Col>
+                <Col md={3}>
+                  <Form.Select
+                    aria-label="Filter by role"
+                    value={roleFilter}
+                    onChange={(e) => {
+                      setPage(1);
+                      setRoleFilter(e.target.value as User["role"] | "");
+                    }}
+                  >
+                    <option value="">All roles</option>
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role} value={role}>
+                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Col>
+                <Col md={4}>
+                  <Form.Select
+                    aria-label="Filter by status"
+                    value={activeFilter}
+                    onChange={(e) => {
+                      setPage(1);
+                      setActiveFilter(e.target.value as "true" | "false" | "");
+                    }}
+                  >
+                    <option value="">All statuses</option>
+                    <option value="true">Active only</option>
+                    <option value="false">Deactivated only</option>
+                  </Form.Select>
+                </Col>
+              </Row>
+            </Card.Body>
+            <Card.Body className="p-0 position-relative">
+              {isTableLoading && (
+                <div
+                  className="position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+                  style={{ background: "rgba(255,255,255,0.6)", zIndex: 1 }}
+                >
+                  <Spinner animation="border" size="sm" />
+                </div>
+              )}
               {users.length === 0 ? (
                 <div className="text-center p-4">
                   <p className="text-muted">No users found</p>
@@ -175,50 +325,118 @@ const AdminPanel: React.FC = () => {
                       <th>Email</th>
                       <th>Role</th>
                       <th>Status</th>
+                      <th>Email Verified</th>
                       <th>Joined</th>
-                      <th>Last Login</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((user) => (
-                      <tr key={user.id}>
-                        <td>
-                          <div>
-                            <strong>{user.full_name}</strong>
-                            <br />
-                            <small className="text-muted">@{user.username}</small>
-                          </div>
-                        </td>
-                        <td>{user.email}</td>
-                        <td>
-                          <Badge bg={ROLE_BADGE_VARIANTS[user.role] ?? "secondary"}>
-                            {user.role.toUpperCase()}
-                          </Badge>
-                        </td>
-                        <td>
-                          <Badge bg={user.is_email_verified ? "success" : "warning"}>
-                            {user.is_email_verified ? "Verified" : "Unverified"}
-                          </Badge>
-                        </td>
-                        <td>{formatDate(user.created_at)}</td>
-                        <td>{formatDate(user.last_login)}</td>
-                        <td>
-                          <Button
-                            variant="outline-primary"
-                            size="sm"
-                            onClick={() => setSelectedUser(user)}
-                          >
-                            <FaEye className="me-1" />
-                            View
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {users.map((rowUser) => {
+                      const isSelf = rowUser.id === currentUser?.id;
+                      const isBusy = pendingActionUserId === rowUser.id;
+                      return (
+                        <tr key={rowUser.id}>
+                          <td>
+                            <div>
+                              <strong>{rowUser.full_name}</strong>
+                              <br />
+                              <small className="text-muted">@{rowUser.username}</small>
+                            </div>
+                          </td>
+                          <td>{rowUser.email}</td>
+                          <td style={{ minWidth: 140 }}>
+                            <Form.Select
+                              size="sm"
+                              value={rowUser.role}
+                              disabled={isSelf || isBusy}
+                              aria-label={`Role for ${rowUser.email}`}
+                              onChange={(e) =>
+                                handleRoleChange(rowUser, e.target.value as User["role"])
+                              }
+                            >
+                              {ROLE_OPTIONS.map((role) => (
+                                <option key={role} value={role}>
+                                  {role.charAt(0).toUpperCase() + role.slice(1)}
+                                </option>
+                              ))}
+                            </Form.Select>
+                          </td>
+                          <td>
+                            <Badge bg={rowUser.is_active ? "success" : "secondary"}>
+                              {rowUser.is_active ? "Active" : "Deactivated"}
+                            </Badge>
+                          </td>
+                          <td>
+                            <Badge bg={rowUser.is_email_verified ? "success" : "warning"}>
+                              {rowUser.is_email_verified ? "Verified" : "Unverified"}
+                            </Badge>
+                          </td>
+                          <td>{formatDate(rowUser.created_at)}</td>
+                          <td>
+                            <div className="d-flex gap-2">
+                              <Button
+                                variant="outline-primary"
+                                size="sm"
+                                onClick={() => setSelectedUser(rowUser)}
+                              >
+                                <FaEye className="me-1" />
+                                View
+                              </Button>
+                              <Button
+                                variant={
+                                  rowUser.is_active ? "outline-danger" : "outline-success"
+                                }
+                                size="sm"
+                                disabled={isSelf || isBusy}
+                                onClick={() => handleToggleActive(rowUser)}
+                                title={
+                                  isSelf
+                                    ? "You can't deactivate your own account"
+                                    : undefined
+                                }
+                              >
+                                {isBusy ? (
+                                  <Spinner animation="border" size="sm" />
+                                ) : rowUser.is_active ? (
+                                  "Deactivate"
+                                ) : (
+                                  "Activate"
+                                )}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </Table>
               )}
             </Card.Body>
+            <Card.Footer className="d-flex justify-content-between align-items-center">
+              <small className="text-muted">
+                {totalCount === 0
+                  ? "No results"
+                  : `Page ${page} of ${totalPages} (${totalCount} total)`}
+              </small>
+              <div className="d-flex gap-2">
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </Card.Footer>
           </Card>
         </Col>
       </Row>
