@@ -11,6 +11,7 @@ PASSWORD_RESET_EXPIRY_HOURS = 24
 
 
 def _send_templated_email(subject, template_name, context, to_email):
+    context = {"logo_url": f"{settings.FRONTEND_URL}/logo512.png", **context}
     text_body = render_to_string(f"emails/{template_name}.txt", context)
     html_body = render_to_string(f"emails/{template_name}.html", context)
 

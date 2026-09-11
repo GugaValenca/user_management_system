@@ -4,4 +4,6 @@ Thanks for signing up. Confirm your email address to finish setting up your acco
 
 {{ verify_url }}
 
-If you didn't create this account, you can safely ignore this email.{% endautoescape %}
+If you didn't create this account, you can safely ignore this email.
+
+- User Management System{% endautoescape %}
