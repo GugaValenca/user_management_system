@@ -9,7 +9,6 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import ActivityLogs from "./pages/ActivityLogs";
 import AdminPanel from "./pages/AdminPanel";
-import "bootstrap/dist/css/bootstrap.min.css";
 
 function App() {
   return (
