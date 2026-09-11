@@ -1,3 +1,5 @@
+import time
+
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -9,8 +11,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.settings import api_settings as simplejwt_settings
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from .emails import send_password_reset_email, send_verification_email
 from .models import User, UserActivityLog
@@ -52,10 +57,20 @@ class EmailVerificationRateThrottle(UserRateThrottle):
     scope = "email_verification"
 
 
+# See the comment in request_password_reset() - this is a timing-attack
+# mitigation, not an arbitrary constant.
+PASSWORD_RESET_RESPONSE_FLOOR_SECONDS = 0.6
+
+
 def get_client_ip(request):
+    """Reverse proxies (Vercel included) append the IP they actually saw to
+    the end of X-Forwarded-For, not the start - a client can freely set
+    their own X-Forwarded-For header, so trusting the first entry lets
+    anyone forge whatever IP ends up in the audit trail. The last entry is
+    the one the trusted proxy itself appended."""
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
     if x_forwarded_for:
-        ip = x_forwarded_for.split(",")[0]
+        ip = x_forwarded_for.split(",")[-1].strip()
     else:
         ip = request.META.get("REMOTE_ADDR")
     return ip
@@ -77,6 +92,29 @@ def blacklist_all_tokens_for(user):
     shouldn't leave old sessions valid."""
     for outstanding_token in OutstandingToken.objects.filter(user=user):
         BlacklistedToken.objects.get_or_create(token=outstanding_token)
+
+
+class ActiveUserTokenRefreshSerializer(TokenRefreshSerializer):
+    """SimpleJWT's own TokenRefreshSerializer never checks the user's
+    is_active status - it only validates the refresh token itself. Left
+    as-is, an admin deactivating a user wouldn't stop that user from
+    minting fresh access tokens (which then fail everywhere else, since
+    JWTAuthentication does check is_active - but the refresh endpoint
+    itself would keep handing out tokens to a deactivated account)."""
+
+    def validate(self, attrs):
+        refresh = self.token_class(attrs["refresh"])
+        user_id = refresh.get(simplejwt_settings.USER_ID_CLAIM)
+        user = User.objects.filter(pk=user_id).first()
+
+        if user is None or not user.is_active:
+            raise TokenError("No active account found for the given token")
+
+        return super().validate(attrs)
+
+
+class ActiveUserTokenRefreshView(TokenRefreshView):
+    serializer_class = ActiveUserTokenRefreshSerializer
 
 
 @extend_schema(
@@ -221,12 +259,26 @@ def request_password_reset(request):
     serializer = PasswordResetRequestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
+    # The response text is deliberately generic so this endpoint can't be
+    # used to check who has an account - but sending an email is slow and
+    # skipping it is near-instant, so response time alone gives the same
+    # thing away. Padding the fast path up to roughly what the slow path
+    # costs closes most of that gap. Not a perfect guarantee against a
+    # patient attacker averaging many samples over a noisy network, but it
+    # removes the obvious "instant vs. seconds" signal without needing a
+    # background task queue this project doesn't have.
+    started_at = time.monotonic()
+
     user = User.objects.filter(email__iexact=serializer.validated_data["email"]).first()
     if user and user.is_active:
         try:
             send_password_reset_email(user)
         except Exception:
             pass
+
+    elapsed = time.monotonic() - started_at
+    if elapsed < PASSWORD_RESET_RESPONSE_FLOOR_SECONDS:
+        time.sleep(PASSWORD_RESET_RESPONSE_FLOOR_SECONDS - elapsed)
 
     return Response({"message": "If an account exists for that email, a reset link has been sent."})
 

@@ -1,3 +1,4 @@
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.db.models import Q
@@ -8,10 +9,19 @@ from rest_framework import serializers
 from .models import User, UserActivityLog
 from .tokens import email_verification_token
 
+# Applied to every password input field. Generous for any real password,
+# but keeps request bodies (and therefore hashing cost) bounded well below
+# Django's global DATA_UPLOAD_MAX_MEMORY_SIZE - defense in depth, not the
+# only thing standing between this API and an oversized-payload request.
+PASSWORD_MAX_LENGTH = 128
+IDENTIFIER_MAX_LENGTH = 254
+
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, validators=[validate_password])
-    password_confirm = serializers.CharField(write_only=True)
+    password = serializers.CharField(
+        write_only=True, max_length=PASSWORD_MAX_LENGTH, validators=[validate_password]
+    )
+    password_confirm = serializers.CharField(write_only=True, max_length=PASSWORD_MAX_LENGTH)
 
     class Meta:
         model = User
@@ -29,9 +39,13 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 class UserLoginSerializer(serializers.Serializer):
-    email = serializers.CharField(required=False, allow_blank=True)
-    identifier = serializers.CharField(required=False, allow_blank=True)
-    password = serializers.CharField(write_only=True)
+    email = serializers.CharField(
+        required=False, allow_blank=True, max_length=IDENTIFIER_MAX_LENGTH
+    )
+    identifier = serializers.CharField(
+        required=False, allow_blank=True, max_length=IDENTIFIER_MAX_LENGTH
+    )
+    password = serializers.CharField(write_only=True, max_length=PASSWORD_MAX_LENGTH)
 
     def validate(self, attrs):
         identifier = (attrs.get("identifier") or attrs.get("email") or "").strip()
@@ -44,7 +58,15 @@ class UserLoginSerializer(serializers.Serializer):
             Q(email__iexact=identifier) | Q(username__iexact=identifier)
         ).first()
 
-        if not user or not user.check_password(password):
+        # Run the hasher even when no user was found, so a nonexistent
+        # identifier doesn't return measurably faster than a real one with a
+        # wrong password - otherwise response timing alone lets an attacker
+        # enumerate registered accounts despite the generic error message.
+        if user is None:
+            make_password(password)
+            raise serializers.ValidationError("Invalid credentials")
+
+        if not user.check_password(password):
             raise serializers.ValidationError("Invalid credentials")
 
         if not user.is_active:
@@ -91,9 +113,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 class PasswordChangeSerializer(serializers.Serializer):
-    old_password = serializers.CharField(write_only=True)
-    new_password = serializers.CharField(write_only=True, validators=[validate_password])
-    new_password_confirm = serializers.CharField(write_only=True)
+    old_password = serializers.CharField(write_only=True, max_length=PASSWORD_MAX_LENGTH)
+    new_password = serializers.CharField(
+        write_only=True, max_length=PASSWORD_MAX_LENGTH, validators=[validate_password]
+    )
+    new_password_confirm = serializers.CharField(write_only=True, max_length=PASSWORD_MAX_LENGTH)
 
     def validate(self, attrs):
         if attrs["new_password"] != attrs["new_password_confirm"]:
@@ -125,14 +149,16 @@ def _get_user_from_uid(uid):
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    email = serializers.EmailField(max_length=IDENTIFIER_MAX_LENGTH)
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
-    uid = serializers.CharField()
-    token = serializers.CharField()
-    new_password = serializers.CharField(write_only=True, validators=[validate_password])
-    new_password_confirm = serializers.CharField(write_only=True)
+    uid = serializers.CharField(max_length=64)
+    token = serializers.CharField(max_length=128)
+    new_password = serializers.CharField(
+        write_only=True, max_length=PASSWORD_MAX_LENGTH, validators=[validate_password]
+    )
+    new_password_confirm = serializers.CharField(write_only=True, max_length=PASSWORD_MAX_LENGTH)
 
     def validate(self, attrs):
         if attrs["new_password"] != attrs["new_password_confirm"]:
@@ -147,8 +173,8 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
 
 class EmailVerificationConfirmSerializer(serializers.Serializer):
-    uid = serializers.CharField()
-    token = serializers.CharField()
+    uid = serializers.CharField(max_length=64)
+    token = serializers.CharField(max_length=128)
 
     def validate(self, attrs):
         user = _get_user_from_uid(attrs["uid"])

@@ -1,12 +1,17 @@
+import io
+import os
 import re
+import time
 from unittest import mock
 
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
@@ -22,6 +27,18 @@ def extract_link_params(email_body):
     match = re.search(r"[?&]uid=([^&\s]+)&token=([^&\s]+)", email_body)
     assert match, f"No uid/token link found in email body:\n{email_body}"
     return match.group(1), match.group(2)
+
+
+def _generate_test_image(dimensions):
+    """Random noise so PNG compression can't shrink a "large" image back
+    under the size limit being tested against."""
+    width, height = dimensions
+    pixels = os.urandom(width * height * 3)
+    image = Image.frombytes("RGB", (width, height), pixels)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    return SimpleUploadedFile("test.png", buffer.read(), content_type="image/png")
 
 
 def create_user(**overrides):
@@ -74,6 +91,21 @@ class AuthLoginTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["user"]["email"], self.user.email)
+
+    def test_logged_ip_uses_the_last_forwarded_for_entry(self):
+        """A client can set their own X-Forwarded-For header. A trusted
+        proxy (Vercel) appends what it actually saw to the end of that
+        header rather than replacing it, so trusting the first entry would
+        let anyone forge whatever IP lands in the audit trail."""
+        self.client.post(
+            self.login_url,
+            {"identifier": self.user.username, "password": self.password},
+            format="json",
+            HTTP_X_FORWARDED_FOR="203.0.113.9, 10.0.0.1",
+        )
+
+        log = UserActivityLog.objects.get(user=self.user, activity_type="login")
+        self.assertEqual(log.ip_address, "10.0.0.1")
 
     def test_login_invalid_credentials_returns_400(self):
         response = self.client.post(
@@ -240,6 +272,25 @@ class ProfileTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertTrue(self.user.is_active)
+
+    def test_profile_picture_over_size_limit_is_rejected(self):
+        oversized_image = _generate_test_image(dimensions=(2000, 1000))
+
+        response = self.client.patch(
+            self.profile_url, {"profile_picture": oversized_image}, format="multipart"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("profile_picture", response.data)
+
+    def test_profile_picture_within_size_limit_is_accepted(self):
+        small_image = _generate_test_image(dimensions=(20, 20))
+
+        response = self.client.patch(
+            self.profile_url, {"profile_picture": small_image}, format="multipart"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_update_profile_logs_activity(self):
         response = self.client.patch(self.profile_url, {"bio": "Backend developer"}, format="json")
@@ -544,6 +595,13 @@ class PasswordResetTests(APITestCase):
         self.request_url = reverse("password_reset_request")
         self.confirm_url = reverse("password_reset_confirm")
 
+        # The response-timing floor (a deliberate mitigation, see
+        # views.request_password_reset) would otherwise add real delay to
+        # every test in this class; it gets its own dedicated test below.
+        floor_patcher = mock.patch("accounts.views.PASSWORD_RESET_RESPONSE_FLOOR_SECONDS", 0)
+        floor_patcher.start()
+        self.addCleanup(floor_patcher.stop)
+
     def test_request_sends_email_for_existing_user(self):
         response = self.client.post(self.request_url, {"email": self.user.email}, format="json")
 
@@ -649,6 +707,58 @@ class PasswordResetTests(APITestCase):
         self.assertTrue(self.user.check_password(self.password))
 
 
+class PasswordResetTimingTests(APITestCase):
+    """The response-timing floor exists specifically so this endpoint can't
+    be used to enumerate accounts by how fast it responds - see the comment
+    in views.request_password_reset. These run with the real floor."""
+
+    def setUp(self):
+        cache.clear()
+        self.request_url = reverse("password_reset_request")
+
+    def test_unknown_email_still_takes_roughly_as_long_as_a_real_one(self):
+        from accounts.views import PASSWORD_RESET_RESPONSE_FLOOR_SECONDS
+
+        started_at = time.monotonic()
+        response = self.client.post(
+            self.request_url, {"email": "nobody-at-all@example.com"}, format="json"
+        )
+        elapsed = time.monotonic() - started_at
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(elapsed, PASSWORD_RESET_RESPONSE_FLOOR_SECONDS)
+
+
+class LoginTimingTests(APITestCase):
+    """Verifies the dummy password hash still runs for a nonexistent
+    identifier - the actual defense is the resulting timing consistency,
+    which isn't reliably assertable in a unit test, so this locks in the
+    mechanism (make_password gets called either way) instead."""
+
+    @mock.patch("accounts.serializers.make_password")
+    def test_dummy_hash_runs_for_nonexistent_identifier(self, mocked_make_password):
+        response = self.client.post(
+            reverse("login"),
+            {"identifier": "nobody-at-all@example.com", "password": "whatever123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        mocked_make_password.assert_called_once_with("whatever123")
+
+    @mock.patch("accounts.serializers.make_password")
+    def test_dummy_hash_does_not_run_for_a_real_identifier(self, mocked_make_password):
+        user = create_user()
+
+        self.client.post(
+            reverse("login"),
+            {"identifier": user.username, "password": "wrong-password"},
+            format="json",
+        )
+
+        mocked_make_password.assert_not_called()
+
+
 class TokenRefreshTests(APITestCase):
     def test_refresh_returns_a_new_access_token(self):
         user = create_user()
@@ -664,6 +774,29 @@ class TokenRefreshTests(APITestCase):
     def test_refresh_rejects_an_invalid_token(self):
         response = self.client.post(
             reverse("token_refresh"), {"refresh": "not-a-real-token"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_refresh_rejects_a_deactivated_users_token(self):
+        user = create_user()
+        refresh = RefreshToken.for_user(user)
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+
+        response = self.client.post(
+            reverse("token_refresh"), {"refresh": str(refresh)}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_refresh_rejects_a_deleted_users_token(self):
+        user = create_user()
+        refresh = RefreshToken.for_user(user)
+        user.delete()
+
+        response = self.client.post(
+            reverse("token_refresh"), {"refresh": str(refresh)}, format="json"
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

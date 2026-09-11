@@ -253,13 +253,28 @@ CORS_ALLOWED_ORIGINS = config(
     default="http://localhost:3000,http://127.0.0.1:3000",
     cast=Csv(),
 )
-CORS_ALLOW_CREDENTIALS = True
+# The API is JWT-only (bearer token in the Authorization header) - the
+# frontend never sends cookies cross-origin, so there's no reason to also
+# allow credentialed CORS requests. Leaving it on would just be unused
+# attack surface if a future XSS or CSRF issue ever showed up.
+CORS_ALLOW_CREDENTIALS = False
 
 CSRF_TRUSTED_ORIGINS = config(
     "CSRF_TRUSTED_ORIGINS",
     default="http://localhost:3000,http://127.0.0.1:3000",
     cast=Csv(),
 )
+
+# The CSRF cookie only needs to be readable by Django's own admin templates
+# (which embed the token server-side via {% csrf_token %}), never by
+# frontend JS - blocking script access limits what a stray XSS could steal.
+CSRF_COOKIE_HTTPONLY = True
+
+# Explicit rather than relying on Django's implicit 2.5MB default - this is
+# a JSON API with no legitimate request anywhere near that size, and this
+# app doesn't accept file uploads through this size check (profile picture
+# uploads are validated separately, see accounts/validators.py).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024  # 1 MB
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
