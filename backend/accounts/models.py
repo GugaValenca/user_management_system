@@ -39,7 +39,10 @@ class UserActivityLog(models.Model):
         ("logout", "Logout"),
         ("profile_update", "Profile Update"),
         ("password_change", "Password Change"),
+        ("password_reset", "Password Reset"),
         ("email_change", "Email Change"),
+        ("email_verified", "Email Verified"),
+        ("admin_update", "Admin Update"),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="activity_logs")

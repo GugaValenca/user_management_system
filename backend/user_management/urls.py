@@ -9,6 +9,7 @@ from django.db.utils import OperationalError
 from django.http import JsonResponse
 from django.urls import include, path
 from django.utils import timezone
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from accounts.models import UserActivityLog
 
@@ -18,7 +19,7 @@ def root_status(request):
         {
             "status": "ok",
             "service": "user_management_system_api",
-            "docs_hint": "/api/auth/",
+            "docs_hint": "/api/docs/",
             "admin": "/admin/",
         }
     )
@@ -30,6 +31,7 @@ def api_status(request):
             "status": "ok",
             "service": "user_management_system_api",
             "base_path": "/api/auth/",
+            "docs": "/api/docs/",
             "health": "/health/",
             "auth_health": "/health/auth/",
         }
@@ -110,6 +112,12 @@ urlpatterns = [
     path("health/auth/", auth_health_status, name="auth_health_status"),
     path("admin/", admin.site.urls),
     path("api/auth/", include("accounts.urls")),
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger_ui",
+    ),
 ]
 
 if settings.DEBUG:

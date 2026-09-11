@@ -1,0 +1,10 @@
+{% extends "emails/base_email.html" %}
+{% block content %}
+  <p>Hi {{ first_name }},</p>
+  <p>Thanks for signing up. Confirm your email address to finish setting up your account.</p>
+  <p style="text-align:center;margin:32px 0;">
+    <a href="{{ verify_url }}" style="background:#0d6efd;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;display:inline-block;">Verify email</a>
+  </p>
+  <p>If the button doesn't work, copy and paste this link into your browser:</p>
+  <p style="word-break:break-all;color:#0d6efd;">{{ verify_url }}</p>
+{% endblock %}

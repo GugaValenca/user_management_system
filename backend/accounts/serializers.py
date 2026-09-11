@@ -1,8 +1,12 @@
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
 from django.db.models import Q
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 
 from .models import User, UserActivityLog
+from .tokens import email_verification_token
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -69,6 +73,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "date_of_birth",
             "bio",
             "is_email_verified",
+            "is_active",
             "last_login",
             "created_at",
             "updated_at",
@@ -78,6 +83,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "email",
             "role",
             "is_email_verified",
+            "is_active",
             "last_login",
             "created_at",
             "updated_at",
@@ -108,3 +114,82 @@ class UserActivityLogSerializer(serializers.ModelSerializer):
         model = UserActivityLog
         fields = ["id", "user_email", "activity_type", "description", "ip_address", "timestamp"]
         read_only_fields = ["id", "timestamp"]
+
+
+def _get_user_from_uid(uid):
+    try:
+        user_id = force_str(urlsafe_base64_decode(uid))
+        return User.objects.get(pk=user_id)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        return None
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    new_password_confirm = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["new_password_confirm"]:
+            raise serializers.ValidationError("Passwords don't match")
+
+        user = _get_user_from_uid(attrs["uid"])
+        if user is None or not default_token_generator.check_token(user, attrs["token"]):
+            raise serializers.ValidationError("This reset link is invalid or has expired")
+
+        attrs["user"] = user
+        return attrs
+
+
+class EmailVerificationConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+
+    def validate(self, attrs):
+        user = _get_user_from_uid(attrs["uid"])
+        if user is None or not email_verification_token.check_token(user, attrs["token"]):
+            raise serializers.ValidationError("This verification link is invalid or has expired")
+
+        attrs["user"] = user
+        return attrs
+
+
+class AdminUserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["role", "is_active"]
+
+
+# --- Response-only serializers, used solely to document API shapes that a
+# function-based view builds by hand (drf-spectacular can't infer these). ---
+
+
+class MessageResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+
+
+class ErrorResponseSerializer(serializers.Serializer):
+    error = serializers.CharField()
+
+
+class AuthTokenPairSerializer(serializers.Serializer):
+    access = serializers.CharField()
+    refresh = serializers.CharField()
+
+
+class AuthResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    user = UserProfileSerializer()
+    tokens = AuthTokenPairSerializer()
+
+
+class UserStatsResponseSerializer(serializers.Serializer):
+    total_users = serializers.IntegerField()
+    active_users = serializers.IntegerField()
+    admin_users = serializers.IntegerField()
+    inactive_users = serializers.IntegerField()

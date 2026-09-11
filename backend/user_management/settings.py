@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
     "corsheaders",
+    "drf_spectacular",
     "accounts",
 ]
 
@@ -159,6 +160,10 @@ else:
         }
     }
 
+# Keep this in sync with PASSWORD_RESET_EXPIRY_HOURS in accounts/emails.py -
+# it's what the reset email tells the user, this is what actually enforces it.
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
@@ -206,7 +211,19 @@ REST_FRAMEWORK = {
         "login": "10/min",
         "register": "5/hour",
         "password_change": "10/hour",
+        "password_reset": "5/hour",
+        "email_verification": "5/hour",
     },
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "User Management System API",
+    "DESCRIPTION": "JWT-based authentication and account management API.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 SIMPLE_JWT = {
@@ -215,6 +232,21 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
 }
+
+# Email is used for password reset and account verification links. Defaults
+# to printing messages to the console so the flow works out of the box in
+# development; set EMAIL_BACKEND (and the SMTP settings below) in production.
+EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = config("EMAIL_HOST", default="")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="no-reply@user-management.local")
+
+# Base URL of the deployed frontend, used to build links inside emails
+# (e.g. https://user-management-site.vercel.app/reset-password).
+FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000").rstrip("/")
 
 CORS_ALLOWED_ORIGINS = config(
     "CORS_ALLOWED_ORIGINS",
