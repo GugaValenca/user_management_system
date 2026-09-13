@@ -13,7 +13,14 @@ import {
   InputGroup,
   Spinner,
 } from "react-bootstrap";
-import { FaUserShield, FaUsers, FaEye, FaSearch, FaHistory, FaClock } from "react-icons/fa";
+import {
+  FaUserShield,
+  FaUsers,
+  FaEye,
+  FaSearch,
+  FaHistory,
+  FaClock,
+} from "react-icons/fa";
 import { authAPI } from "../services/api";
 import { useAuth } from "../utils/AuthContext";
 import { User, UserStats, ActivityLog } from "../types";
@@ -622,7 +629,9 @@ const AdminPanel: React.FC = () => {
                   variant="outline-secondary"
                   size="sm"
                   disabled={activityPage >= activityTotalPages}
-                  onClick={() => setActivityPage((p) => Math.min(activityTotalPages, p + 1))}
+                  onClick={() =>
+                    setActivityPage((p) => Math.min(activityTotalPages, p + 1))
+                  }
                 >
                   Next
                 </Button>
