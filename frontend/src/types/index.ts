@@ -43,6 +43,7 @@ export interface AuthResponse {
 export interface ActivityLog {
   id: number;
   user_email: string;
+  username: string;
   activity_type: string;
   description: string;
   ip_address?: string;
@@ -85,4 +86,10 @@ export interface AdminUserListParams {
   search?: string;
   role?: User["role"] | "";
   is_active?: "true" | "false" | "";
+}
+
+export interface AdminActivityLogParams {
+  page?: number;
+  search?: string;
+  activity_type?: string;
 }

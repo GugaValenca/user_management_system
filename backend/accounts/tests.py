@@ -392,6 +392,60 @@ class ActivityLogTests(APITestCase):
         self.assertEqual(emails, {self.user.email})
 
 
+class AdminActivityLogTests(APITestCase):
+    def setUp(self):
+        self.admin = create_user(email="logadmin@example.com", username="logadmin", role="admin")
+        self.alice = create_user(email="alice@example.com", username="alice")
+        self.bob = create_user(email="bob@example.com", username="bob")
+        UserActivityLog.objects.create(
+            user=self.alice, activity_type="login", description="alice login"
+        )
+        UserActivityLog.objects.create(
+            user=self.bob, activity_type="password_change", description="bob changed password"
+        )
+        self.url = reverse("admin_activity_logs")
+
+    def _authenticate_as(self, user):
+        refresh = RefreshToken.for_user(user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+
+    def test_regular_user_cannot_view_system_wide_logs(self):
+        self._authenticate_as(self.alice)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_sees_activity_from_every_user(self):
+        self._authenticate_as(self.admin)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        emails = {entry["user_email"] for entry in response.data["results"]}
+        self.assertEqual(emails, {self.alice.email, self.bob.email})
+        usernames = {entry["username"] for entry in response.data["results"]}
+        self.assertEqual(usernames, {"alice", "bob"})
+
+    def test_search_filters_by_acting_user(self):
+        self._authenticate_as(self.admin)
+
+        response = self.client.get(self.url, {"search": "alice"})
+
+        entries = response.data["results"]
+        self.assertTrue(entries)
+        self.assertTrue(all(entry["user_email"] == self.alice.email for entry in entries))
+
+    def test_filter_by_activity_type(self):
+        self._authenticate_as(self.admin)
+
+        response = self.client.get(self.url, {"activity_type": "password_change"})
+
+        entries = response.data["results"]
+        self.assertTrue(entries)
+        self.assertTrue(all(entry["activity_type"] == "password_change" for entry in entries))
+
+
 class AdminEndpointTests(APITestCase):
     def setUp(self):
         self.admin = create_user(email="admin@example.com", username="adminuser", role="admin")

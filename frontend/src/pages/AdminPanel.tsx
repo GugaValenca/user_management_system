@@ -13,10 +13,10 @@ import {
   InputGroup,
   Spinner,
 } from "react-bootstrap";
-import { FaUserShield, FaUsers, FaEye, FaSearch } from "react-icons/fa";
+import { FaUserShield, FaUsers, FaEye, FaSearch, FaHistory, FaClock } from "react-icons/fa";
 import { authAPI } from "../services/api";
 import { useAuth } from "../utils/AuthContext";
-import { User, UserStats } from "../types";
+import { User, UserStats, ActivityLog } from "../types";
 
 type BadgeVariant =
   "primary" | "secondary" | "success" | "danger" | "warning" | "info" | "light" | "dark";
@@ -41,6 +41,21 @@ const ADMIN_STATS_CARDS: AdminStatsCardConfig[] = [
   { key: "admin_users", label: "Admin Users", colorClass: "text-warning" },
   { key: "inactive_users", label: "Inactive Users", colorClass: "text-danger" },
 ];
+
+const ACTIVITY_BADGE_VARIANTS: { [key: string]: BadgeVariant } = {
+  login: "success",
+  logout: "secondary",
+  register: "success",
+  profile_update: "info",
+  password_change: "warning",
+  password_reset: "warning",
+  email_change: "primary",
+  email_verified: "success",
+  admin_update: "dark",
+};
+
+const getActivityBadge = (activityType: string): BadgeVariant =>
+  ACTIVITY_BADGE_VARIANTS[activityType] ?? "light";
 
 const formatDate = (dateString?: string): string =>
   dateString ? new Date(dateString).toLocaleDateString() : "Never";
@@ -122,9 +137,23 @@ const AdminPanel: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<User["role"] | "">("");
   const [activeFilter, setActiveFilter] = useState<"true" | "false" | "">("");
 
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [activityTotalCount, setActivityTotalCount] = useState(0);
+  const [activityPage, setActivityPage] = useState(1);
+  const [isActivityLoading, setIsActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState("");
+  const [activitySearchInput, setActivitySearchInput] = useState("");
+  const [activitySearch, setActivitySearch] = useState("");
+  const [activityTypeFilter, setActivityTypeFilter] = useState("");
+
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
     [totalCount]
+  );
+
+  const activityTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(activityTotalCount / PAGE_SIZE)),
+    [activityTotalCount]
   );
 
   useEffect(() => {
@@ -167,6 +196,41 @@ const AdminPanel: React.FC = () => {
       cancelled = true;
     };
   }, [page, search, roleFilter, activeFilter]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setActivityPage(1);
+      setActivitySearch(activitySearchInput.trim());
+    }, 400);
+    return () => clearTimeout(timeoutId);
+  }, [activitySearchInput]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsActivityLoading(true);
+
+    authAPI
+      .getAllActivityLogs({
+        page: activityPage,
+        search: activitySearch,
+        activity_type: activityTypeFilter,
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setActivityLogs(data.results);
+        setActivityTotalCount(data.count);
+      })
+      .catch(() => {
+        if (!cancelled) setActivityError("Failed to load activity logs");
+      })
+      .finally(() => {
+        if (!cancelled) setIsActivityLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activityPage, activitySearch, activityTypeFilter]);
 
   const applyUserUpdate = (userId: number, updatedFields: Partial<User>) => {
     setUsers((current) =>
@@ -432,6 +496,133 @@ const AdminPanel: React.FC = () => {
                   size="sm"
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </Card.Footer>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row className="mt-4">
+        <Col>
+          <Card>
+            <Card.Header>
+              <h5 className="mb-0">
+                <FaHistory className="me-2" />
+                System Activity
+              </h5>
+            </Card.Header>
+            <Card.Body>
+              {activityError && (
+                <Alert variant="danger" dismissible onClose={() => setActivityError("")}>
+                  {activityError}
+                </Alert>
+              )}
+              <Row className="mb-3 g-2">
+                <Col md={8}>
+                  <InputGroup>
+                    <InputGroup.Text>
+                      <FaSearch />
+                    </InputGroup.Text>
+                    <Form.Control
+                      type="search"
+                      placeholder="Search by the acting user's email or username"
+                      value={activitySearchInput}
+                      onChange={(e) => setActivitySearchInput(e.target.value)}
+                      aria-label="Search activity logs"
+                    />
+                  </InputGroup>
+                </Col>
+                <Col md={4}>
+                  <Form.Select
+                    aria-label="Filter by activity type"
+                    value={activityTypeFilter}
+                    onChange={(e) => {
+                      setActivityPage(1);
+                      setActivityTypeFilter(e.target.value);
+                    }}
+                  >
+                    <option value="">All activity types</option>
+                    {Object.keys(ACTIVITY_BADGE_VARIANTS).map((activityType) => (
+                      <option key={activityType} value={activityType}>
+                        {activityType.replace(/_/g, " ").toUpperCase()}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Col>
+              </Row>
+            </Card.Body>
+            <Card.Body className="p-0 position-relative">
+              {isActivityLoading && (
+                <div
+                  className="position-absolute top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+                  style={{ background: "rgba(255,255,255,0.6)", zIndex: 1 }}
+                >
+                  <Spinner animation="border" size="sm" />
+                </div>
+              )}
+              {activityLogs.length === 0 ? (
+                <div className="text-center p-4">
+                  <p className="text-muted">No activity logs found</p>
+                </div>
+              ) : (
+                <Table responsive hover className="mb-0">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Activity</th>
+                      <th>Description</th>
+                      <th>
+                        <FaClock className="me-1" />
+                        Date &amp; Time
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activityLogs.map((log) => (
+                      <tr key={log.id}>
+                        <td>
+                          <div>
+                            <strong>@{log.username}</strong>
+                            <br />
+                            <small className="text-muted">{log.user_email}</small>
+                          </div>
+                        </td>
+                        <td>
+                          <Badge bg={getActivityBadge(log.activity_type)}>
+                            {log.activity_type.replace(/_/g, " ").toUpperCase()}
+                          </Badge>
+                        </td>
+                        <td>{log.description}</td>
+                        <td>{formatDateTime(log.timestamp)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
+            </Card.Body>
+            <Card.Footer className="d-flex justify-content-between align-items-center">
+              <small className="text-muted">
+                {activityTotalCount === 0
+                  ? "No results"
+                  : `Page ${activityPage} of ${activityTotalPages} (${activityTotalCount} total)`}
+              </small>
+              <div className="d-flex gap-2">
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  disabled={activityPage <= 1}
+                  onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  disabled={activityPage >= activityTotalPages}
+                  onClick={() => setActivityPage((p) => Math.min(activityTotalPages, p + 1))}
                 >
                   Next
                 </Button>

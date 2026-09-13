@@ -4,13 +4,14 @@ import userEvent from "@testing-library/user-event";
 import AdminPanel from "./AdminPanel";
 import { authAPI } from "../services/api";
 import { useAuth } from "../utils/AuthContext";
-import { User } from "../types";
+import { User, ActivityLog } from "../types";
 
 jest.mock("../services/api", () => ({
   authAPI: {
     getUserStats: jest.fn(),
     getAllUsers: jest.fn(),
     updateUser: jest.fn(),
+    getAllActivityLogs: jest.fn(),
   },
 }));
 
@@ -37,12 +38,22 @@ const OTHER_USER: User = {
   updated_at: "2024-01-01T00:00:00Z",
 };
 
-const paginatedResponse = (results: User[]) => ({
+const paginatedResponse = <T,>(results: T[]) => ({
   count: results.length,
   next: null,
   previous: null,
   results,
 });
+
+const ACTIVITY_LOG: ActivityLog = {
+  id: 1,
+  user_email: "logtarget@example.com",
+  username: "logtarget",
+  activity_type: "login",
+  description: "User logged in",
+  ip_address: "127.0.0.1",
+  timestamp: "2024-01-01T00:00:00Z",
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -54,6 +65,7 @@ beforeEach(() => {
     inactive_users: 0,
   });
   mockedAuthAPI.getAllUsers.mockResolvedValue(paginatedResponse([OTHER_USER]));
+  mockedAuthAPI.getAllActivityLogs.mockResolvedValue(paginatedResponse([ACTIVITY_LOG]));
 });
 
 describe("AdminPanel", () => {
@@ -122,6 +134,38 @@ describe("AdminPanel", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/failed to update role/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows which user performed each logged action", async () => {
+    render(<AdminPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText("@logtarget")).toBeInTheDocument();
+    });
+    expect(screen.getByText("User logged in")).toBeInTheDocument();
+  });
+
+  it("filters the activity feed by the acting user", async () => {
+    render(<AdminPanel />);
+
+    await screen.findByText("@logtarget");
+
+    userEvent.type(screen.getByLabelText(/search activity logs/i), "logtarget");
+
+    await waitFor(() => {
+      expect(mockedAuthAPI.getAllActivityLogs).toHaveBeenCalledWith(
+        expect.objectContaining({ search: "logtarget" })
+      );
+    });
+  });
+
+  it("shows an error message when the activity feed fails to load", async () => {
+    mockedAuthAPI.getAllActivityLogs.mockRejectedValue(new Error("network error"));
+    render(<AdminPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to load activity logs/i)).toBeInTheDocument();
     });
   });
 });

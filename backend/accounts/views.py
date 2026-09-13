@@ -393,6 +393,43 @@ class AdminUserListView(generics.ListAPIView):
         return queryset
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            "search", str, description="Matches against the acting user's email or username."
+        ),
+        OpenApiParameter(
+            "activity_type",
+            str,
+            description="Exact match, e.g. login, logout, password_change, admin_update.",
+        ),
+    ]
+)
+class AdminActivityLogView(generics.ListAPIView):
+    """System-wide activity feed for admins - the self-service
+    UserActivityLogView above only ever shows the caller's own history, so
+    there was previously no way for an admin to see who did what across
+    every account."""
+
+    serializer_class = UserActivityLogSerializer
+    permission_classes = [IsAdmin]
+
+    def get_queryset(self):
+        queryset = UserActivityLog.objects.select_related("user").order_by("-timestamp")
+
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(user__email__icontains=search) | Q(user__username__icontains=search)
+            )
+
+        activity_type = self.request.query_params.get("activity_type", "").strip()
+        if activity_type:
+            queryset = queryset.filter(activity_type=activity_type)
+
+        return queryset
+
+
 class AdminUserDetailView(generics.RetrieveUpdateAPIView):
     """Lets an admin change another user's role or activate/deactivate their
     account. Deliberately can't be used on your own account, so an admin can

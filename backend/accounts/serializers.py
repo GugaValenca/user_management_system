@@ -133,10 +133,19 @@ class PasswordChangeSerializer(serializers.Serializer):
 
 class UserActivityLogSerializer(serializers.ModelSerializer):
     user_email = serializers.CharField(source="user.email", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True)
 
     class Meta:
         model = UserActivityLog
-        fields = ["id", "user_email", "activity_type", "description", "ip_address", "timestamp"]
+        fields = [
+            "id",
+            "user_email",
+            "username",
+            "activity_type",
+            "description",
+            "ip_address",
+            "timestamp",
+        ]
         read_only_fields = ["id", "timestamp"]
 
 

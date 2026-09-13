@@ -26,6 +26,11 @@ urlpatterns = [
         name="verify_email_resend",
     ),
     path("activity-logs/", views.UserActivityLogView.as_view(), name="activity_logs"),
+    path(
+        "activity-logs/all/",
+        views.AdminActivityLogView.as_view(),
+        name="admin_activity_logs",
+    ),
     path("users/", views.AdminUserListView.as_view(), name="user_list"),
     path("users/<int:pk>/", views.AdminUserDetailView.as_view(), name="admin_user_detail"),
     path("stats/", views.user_stats, name="user_stats"),

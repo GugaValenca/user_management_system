@@ -11,6 +11,7 @@ import {
   EmailVerificationConfirmData,
   AdminUserUpdateData,
   AdminUserListParams,
+  AdminActivityLogParams,
 } from "../types";
 import { authStorage } from "../utils/authStorage";
 
@@ -179,6 +180,11 @@ export const authAPI = {
 
   getActivityLogs: (page = 1): Promise<PaginatedResponse<ActivityLog>> =>
     getPaginatedData(api.get("/auth/activity-logs/", { params: { page } })),
+
+  getAllActivityLogs: (
+    params: AdminActivityLogParams = {}
+  ): Promise<PaginatedResponse<ActivityLog>> =>
+    getPaginatedData(api.get("/auth/activity-logs/all/", { params })),
 
   getUserStats: (): Promise<UserStats> => getResponseData(api.get("/auth/stats/")),
 
