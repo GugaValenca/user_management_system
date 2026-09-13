@@ -8,7 +8,7 @@ export interface User {
   role: "admin" | "user" | "moderator";
   profile_picture?: string;
   phone_number?: string;
-  date_of_birth?: string;
+  date_of_birth?: string | null;
   bio?: string;
   is_email_verified: boolean;
   is_active: boolean;

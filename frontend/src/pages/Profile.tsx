@@ -91,11 +91,25 @@ const Profile: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const updatedUser = await authAPI.updateProfile(profileForm);
+      // DRF's DateField rejects "" as an invalid format - it wants either a
+      // real date or null. An empty date input reads back as "", so an
+      // untouched (or cleared) date_of_birth must be sent as null, not "".
+      const payload = {
+        ...profileForm,
+        date_of_birth: profileForm.date_of_birth || null,
+      };
+      const updatedUser = await authAPI.updateProfile(payload);
       updateUser(updatedUser);
       setSuccessMessage("Profile updated successfully!");
-    } catch {
-      setErrorMessage("Failed to update profile. Please try again.");
+    } catch (error: any) {
+      const apiData = error.response?.data;
+      const firstFieldError =
+        apiData && typeof apiData === "object"
+          ? Object.values(apiData).find(
+              (value): value is string[] => Array.isArray(value) && value.length > 0
+            )?.[0]
+          : undefined;
+      setErrorMessage(firstFieldError || "Failed to update profile. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
