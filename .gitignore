@@ -27,6 +27,7 @@ backend/local_settings.py
 backend/db.sqlite3
 backend/db.sqlite3-journal
 backend/media/
+backend/staticfiles/
 
 # Node.js
 frontend/node_modules/

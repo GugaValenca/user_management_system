@@ -205,10 +205,51 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Django 5 dropped the old STATICFILES_STORAGE/DEFAULT_FILE_STORAGE shims
+# entirely - only this STORAGES dict actually has any effect now. (Setting
+# the old names silently does nothing here, which is its own trap: it
+# looks configured but isn't.)
+#
+# Manifest-based static storage (whitenoise's compressed/hashed variant)
+# requires collectstatic to have already run to build its manifest - true
+# in the real deployment (see vercel.json's buildCommand), never true for
+# local dev or CI, where referencing any static file - e.g. Django admin's
+# own templates - would otherwise hard-crash with a missing manifest
+# entry. Plain StaticFilesStorage needs no manifest, so it's what runs
+# whenever DEBUG is on.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        )
+    },
+}
+
+# The deployed filesystem (Vercel's serverless functions) is read-only, so
+# the local FileSystemStorage default above only actually works for local
+# development and CI - saving an uploaded profile picture in production
+# raised a bare OSError until Cloudinary credentials were configured.
+# Falls back to local storage automatically when they're not set, so
+# tests and local dev never need real Cloudinary credentials.
+CLOUDINARY_CLOUD_NAME = config("CLOUDINARY_CLOUD_NAME", default="")
+CLOUDINARY_API_KEY = config("CLOUDINARY_API_KEY", default="")
+CLOUDINARY_API_SECRET = config("CLOUDINARY_API_SECRET", default="")
+
+if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+    INSTALLED_APPS += ["cloudinary_storage", "cloudinary"]
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
+        "API_KEY": CLOUDINARY_API_KEY,
+        "API_SECRET": CLOUDINARY_API_SECRET,
+    }
+    STORAGES["default"] = {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"

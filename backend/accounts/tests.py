@@ -1284,3 +1284,90 @@ class UnhandledExceptionHandlingTests(APITestCase):
         self.assertEqual(
             response.data["error"], "An unexpected error occurred. Please try again later."
         )
+
+
+class MediaStorageConfigurationTests(TestCase):
+    """The deployed filesystem is read-only, so media uploads need object
+    storage in production - but local dev and CI must keep working without
+    real Cloudinary credentials. Runs in a subprocess since the storage
+    backend is picked once, at settings import time."""
+
+    def _resolved_storage_backend(self, env_overrides, storage_key="default"):
+        env = {**os.environ, **env_overrides}
+        env = {key: value for key, value in env.items() if value is not None}
+        result = subprocess.run(
+            [
+                sys.executable,
+                "manage.py",
+                "shell",
+                "-c",
+                "from django.conf import settings; "
+                f"print('BACKEND=' + settings.STORAGES['{storage_key}']['BACKEND'])",
+            ],
+            cwd=str(Path(__file__).resolve().parent.parent),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        for line in result.stdout.splitlines():
+            if line.startswith("BACKEND="):
+                return line[len("BACKEND=") :]
+        return f"<no BACKEND= line in output>\nstdout: {result.stdout}\nstderr: {result.stderr}"
+
+    def test_uses_local_filesystem_storage_without_cloudinary_credentials(self):
+        backend = self._resolved_storage_backend(
+            {
+                "CLOUDINARY_CLOUD_NAME": None,
+                "CLOUDINARY_API_KEY": None,
+                "CLOUDINARY_API_SECRET": None,
+            }
+        )
+
+        self.assertEqual(backend, "django.core.files.storage.FileSystemStorage")
+
+    def test_switches_to_cloudinary_when_all_three_credentials_are_set(self):
+        backend = self._resolved_storage_backend(
+            {
+                "CLOUDINARY_CLOUD_NAME": "demo",
+                "CLOUDINARY_API_KEY": "demo",
+                "CLOUDINARY_API_SECRET": "demo",
+            }
+        )
+
+        self.assertEqual(backend, "cloudinary_storage.storage.MediaCloudinaryStorage")
+
+    def test_a_partial_set_of_credentials_still_uses_local_storage(self):
+        backend = self._resolved_storage_backend(
+            {
+                "CLOUDINARY_CLOUD_NAME": "demo",
+                "CLOUDINARY_API_KEY": None,
+                "CLOUDINARY_API_SECRET": None,
+            }
+        )
+
+        self.assertEqual(backend, "django.core.files.storage.FileSystemStorage")
+
+    def test_static_storage_avoids_the_manifest_backend_in_debug(self):
+        # The manifest-based (whitenoise) backend requires collectstatic to
+        # have already built its manifest - true in the real deployment,
+        # never true for local dev, where referencing any static file
+        # (Django admin's own templates included) would otherwise hard-crash
+        # with a missing manifest entry.
+        backend = self._resolved_storage_backend(
+            {"DJANGO_DEBUG": "True"}, storage_key="staticfiles"
+        )
+
+        self.assertEqual(backend, "django.contrib.staticfiles.storage.StaticFilesStorage")
+
+    def test_static_storage_uses_the_manifest_backend_outside_debug(self):
+        backend = self._resolved_storage_backend(
+            {
+                "DJANGO_DEBUG": "False",
+                "DJANGO_SECRET_KEY": "a-properly-long-random-production-secret-key-1234567890",
+                "DJANGO_ALLOWED_HOSTS": "example.com",
+            },
+            storage_key="staticfiles",
+        )
+
+        self.assertEqual(backend, "whitenoise.storage.CompressedManifestStaticFilesStorage")
