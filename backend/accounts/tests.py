@@ -352,6 +352,23 @@ class ProfileTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_profile_picture_upload_failure_returns_a_clean_error(self):
+        # The deployed filesystem is read-only (serverless) - this
+        # reproduces that exact failure locally and checks it comes back
+        # as a clear, handled error instead of an unhandled 500.
+        small_image = _generate_test_image(dimensions=(20, 20))
+
+        with mock.patch(
+            "django.core.files.storage.FileSystemStorage._save",
+            side_effect=OSError("Read-only file system"),
+        ):
+            response = self.client.patch(
+                self.profile_url, {"profile_picture": small_image}, format="multipart"
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertIn("profile_picture", response.data)
+
     def test_update_profile_logs_activity(self):
         response = self.client.patch(self.profile_url, {"bio": "Backend developer"}, format="json")
 

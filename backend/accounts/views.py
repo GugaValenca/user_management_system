@@ -286,7 +286,19 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
     def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
+        try:
+            response = super().update(request, *args, **kwargs)
+        except OSError:
+            # The deployed filesystem is read-only (serverless), so saving
+            # an uploaded file always fails here until real object storage
+            # is wired up. Fail with a clear, honest error instead of an
+            # unhandled 500 - and before that, none of the other fields in
+            # the same request were saved either, since the file write
+            # happens inside the same instance.save() call.
+            return Response(
+                {"profile_picture": ["Profile picture uploads are temporarily unavailable."]},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         if response.status_code == 200:
             log_user_activity(
                 request.user, "profile_update", "Profile updated successfully", request
