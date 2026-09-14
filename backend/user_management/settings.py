@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from corsheaders.defaults import default_headers
 from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
 
@@ -276,6 +277,12 @@ CORS_ALLOWED_ORIGINS = config(
 # actually send it cross-origin. CORS_ALLOWED_ORIGINS stays a strict, exact
 # allowlist (never a wildcard) - that's what makes credentialed CORS safe.
 CORS_ALLOW_CREDENTIALS = True
+
+# The double-submit CSRF header the frontend attaches on refresh/logout
+# calls (see accounts/cookies.py) isn't in corsheaders' default allowlist -
+# without this, the browser's own CORS preflight would block it before the
+# request ever reached Django, regardless of what the view allows.
+CORS_ALLOW_HEADERS = (*default_headers, "x-refresh-csrf-token")
 
 CSRF_TRUSTED_ORIGINS = config(
     "CSRF_TRUSTED_ORIGINS",

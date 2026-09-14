@@ -1182,3 +1182,32 @@ class ProductionSecretKeyValidationTests(TestCase):
         result = self._run_check({"DJANGO_DEBUG": "True", "DJANGO_SECRET_KEY": None})
 
         self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class CorsPreflightTests(APITestCase):
+    """The double-submit CSRF header the frontend attaches on refresh/logout
+    calls (accounts/cookies.py) has to be in CORS_ALLOW_HEADERS - otherwise
+    the browser's own preflight blocks the request before Django ever sees
+    it, no matter what the view allows. Curl and Django's test client don't
+    enforce CORS themselves, so this has to check the preflight response
+    headers directly rather than whether the real request succeeds."""
+
+    def test_preflight_allows_the_refresh_csrf_header(self):
+        response = self.client.options(
+            reverse("token_refresh"),
+            HTTP_ORIGIN="http://localhost:3000",
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="POST",
+            HTTP_ACCESS_CONTROL_REQUEST_HEADERS="x-refresh-csrf-token",
+        )
+
+        allowed_headers = response.get("Access-Control-Allow-Headers", "")
+        self.assertIn("x-refresh-csrf-token", allowed_headers.lower())
+
+    def test_preflight_allows_credentials(self):
+        response = self.client.options(
+            reverse("token_refresh"),
+            HTTP_ORIGIN="http://localhost:3000",
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="POST",
+        )
+
+        self.assertEqual(response.get("Access-Control-Allow-Credentials"), "true")
