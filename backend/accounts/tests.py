@@ -970,7 +970,15 @@ class TokenRefreshTests(APITestCase):
     def test_refresh_rejects_a_token_with_a_bad_signature(self):
         user = create_user()
         refresh = RefreshToken.for_user(user)
-        tampered_token = str(refresh)[:-4] + "xxxx"
+
+        # Flips exactly one character within the signature segment - the
+        # token stays the same length and every segment stays valid
+        # base64url, so it decodes fine unverified (a readable jti is what
+        # the CSRF check needs) while its signature no longer matches.
+        header, payload, signature = str(refresh).split(".")
+        last_char = signature[-1]
+        replacement = "a" if last_char != "a" else "b"
+        tampered_token = f"{header}.{payload}.{signature[:-1]}{replacement}"
 
         response = self._post_refresh(tampered_token)
 
