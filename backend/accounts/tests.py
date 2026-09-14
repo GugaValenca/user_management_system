@@ -971,14 +971,20 @@ class TokenRefreshTests(APITestCase):
         user = create_user()
         refresh = RefreshToken.for_user(user)
 
-        # Flips exactly one character within the signature segment - the
-        # token stays the same length and every segment stays valid
-        # base64url, so it decodes fine unverified (a readable jti is what
-        # the CSRF check needs) while its signature no longer matches.
+        # Flips one character in the *middle* of the signature segment -
+        # deliberately not the last character, since base64url's final
+        # character carries padding bits that newer PyJWT versions
+        # validate are canonical, which a naive last-character flip can
+        # trip even before signature verification ever runs. A middle
+        # character has no such constraint: the token stays the same
+        # length and every segment stays valid base64url, so it decodes
+        # fine unverified (a readable jti is what the CSRF check needs)
+        # while its signature no longer matches.
         header, payload, signature = str(refresh).split(".")
-        last_char = signature[-1]
-        replacement = "a" if last_char != "a" else "b"
-        tampered_token = f"{header}.{payload}.{signature[:-1]}{replacement}"
+        mid = len(signature) // 2
+        replacement = "a" if signature[mid] != "a" else "b"
+        tampered_signature = signature[:mid] + replacement + signature[mid + 1 :]
+        tampered_token = f"{header}.{payload}.{tampered_signature}"
 
         response = self._post_refresh(tampered_token)
 
