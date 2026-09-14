@@ -19,7 +19,7 @@ jest.mock("../services/api", () => ({
 const mockedAuthAPI = authAPI as jest.Mocked<typeof authAPI>;
 
 const TEST_USER = { id: 1, email: "test@example.com", full_name: "Test User" } as User;
-const TEST_TOKENS = { access: "access-token" };
+const TEST_TOKENS = { access: "access-token", csrf_token: "csrf-token" };
 
 const TestConsumer: React.FC = () => {
   const { user, isAuthenticated, login, logout } = useAuth();
@@ -45,7 +45,7 @@ const renderWithProvider = () =>
 
 beforeEach(() => {
   jest.clearAllMocks();
-  tokenStore.setAccessToken(null);
+  tokenStore.clear();
   // No httpOnly cookie exists in this test environment, so the silent
   // refresh AuthContext runs on mount fails unless a test opts in below -
   // matching a real first visit with no session.

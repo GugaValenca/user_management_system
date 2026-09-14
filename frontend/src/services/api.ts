@@ -17,6 +17,7 @@ import { tokenStore } from "../utils/tokenStore";
 
 type RetryableRequestConfig = AxiosRequestConfig & { _retry?: boolean };
 type ListResponse<T> = T[] | PaginatedResponse<T>;
+type RefreshResult = { access: string; csrf_token: string };
 
 const defaultApiBaseUrl =
   window.location.hostname === "localhost" ? "http://localhost:8000/api" : "/api";
@@ -44,8 +45,14 @@ const api = axios.create({
 
 const REFRESH_CSRF_HEADER = "X-Refresh-Csrf-Token";
 
+const applyRefreshResult = ({ access, csrf_token }: RefreshResult): string => {
+  tokenStore.setAccessToken(access);
+  tokenStore.setRefreshCsrfToken(csrf_token);
+  return access;
+};
+
 const redirectToLogin = () => {
-  tokenStore.setAccessToken(null);
+  tokenStore.clear();
   window.location.href = "/login";
 };
 
@@ -87,7 +94,7 @@ let refreshPromise: Promise<string | null> | null = null;
 
 const refreshAccessToken = async (): Promise<string | null> => {
   try {
-    const { data } = await axios.post<{ access: string }>(
+    const { data } = await axios.post<RefreshResult>(
       `${API_BASE_URL}/auth/refresh/`,
       null,
       {
@@ -95,8 +102,7 @@ const refreshAccessToken = async (): Promise<string | null> => {
         headers: { [REFRESH_CSRF_HEADER]: tokenStore.getRefreshCsrfToken() ?? "" },
       }
     );
-    tokenStore.setAccessToken(data.access);
-    return data.access;
+    return applyRefreshResult(data);
   } catch {
     return null;
   }
@@ -143,7 +149,7 @@ export const authAPI = {
 
   login: (credentials: LoginCredentials): Promise<AuthResponse> => {
     // Avoid stale-token auth failures on login endpoints.
-    tokenStore.setAccessToken(null);
+    tokenStore.clear();
     const normalizedIdentifier = credentials.identifier.trim();
     return getResponseData(
       api.post("/auth/login/", {
@@ -163,8 +169,8 @@ export const authAPI = {
     ),
 
   // Exchanges the httpOnly refresh cookie for a fresh access token - used
-  // on app load, since the access token itself is never persisted.
-  refreshSession: (): Promise<{ access: string }> =>
+  // on app load, since neither token is ever persisted client-side.
+  refreshSession: (): Promise<RefreshResult> =>
     getResponseData(
       api.post("/auth/refresh/", null, {
         headers: { [REFRESH_CSRF_HEADER]: tokenStore.getRefreshCsrfToken() ?? "" },

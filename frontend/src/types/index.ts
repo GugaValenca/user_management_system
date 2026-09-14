@@ -36,8 +36,10 @@ export interface AuthResponse {
   user: User;
   // The refresh token never appears here - it's set directly as an
   // httpOnly cookie the backend manages (see accounts/cookies.py).
+  // csrf_token must be echoed back as a header on refresh/logout calls.
   tokens: {
     access: string;
+    csrf_token: string;
   };
 }
 

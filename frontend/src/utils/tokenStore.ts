@@ -5,15 +5,16 @@
 // credential straight out of browser storage. It's now kept only in this
 // module-level variable: it doesn't survive a page reload, but that's the
 // point - a reload just triggers a silent refresh (see AuthContext) using
-// the httpOnly cookie the attacker's script can't touch either way.
+// the httpOnly cookie an attacker's script can't touch either way.
+//
+// The CSRF token that has to accompany refresh/logout calls (see backend
+// accounts/cookies.py) is kept the same way, for the same reason it can't
+// just be a second cookie: the API lives on a different origin than this
+// app, and cookies aren't readable across origins - the backend hands the
+// value back in the login/register/refresh response body instead, which
+// only this app's own JS ever gets to read.
 let accessToken: string | null = null;
-
-const REFRESH_CSRF_COOKIE_NAME = "refresh_csrf_token";
-
-function readCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : null;
-}
+let refreshCsrfToken: string | null = null;
 
 export const tokenStore = {
   getAccessToken(): string | null {
@@ -24,11 +25,16 @@ export const tokenStore = {
     accessToken = token;
   },
 
-  // Read by requests to /auth/refresh/ and /auth/logout/ - the backend
-  // rejects those unless this exact value comes back as a header, which a
-  // forged cross-site request has no way to read (double-submit CSRF
-  // defense; see backend accounts/cookies.py).
   getRefreshCsrfToken(): string | null {
-    return readCookie(REFRESH_CSRF_COOKIE_NAME);
+    return refreshCsrfToken;
+  },
+
+  setRefreshCsrfToken(token: string | null): void {
+    refreshCsrfToken = token;
+  },
+
+  clear(): void {
+    accessToken = null;
+    refreshCsrfToken = null;
   },
 };

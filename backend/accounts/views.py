@@ -20,9 +20,11 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .cookies import (
     REFRESH_COOKIE_NAME,
-    clear_refresh_cookies,
+    clear_refresh_cookie,
     csrf_check_passes,
-    set_refresh_cookies,
+    csrf_token_for_jti,
+    extract_jti_unverified,
+    set_refresh_cookie,
 )
 from .emails import send_password_reset_email, send_verification_email
 from .models import User, UserActivityLog
@@ -125,8 +127,8 @@ class ActiveUserTokenRefreshSerializer(TokenRefreshSerializer):
 
 class ActiveUserTokenRefreshView(TokenRefreshView):
     """Reads the refresh token from the httpOnly cookie instead of the
-    request body, and requires the double-submit CSRF header to match its
-    companion cookie - see accounts/cookies.py for why. The rotated refresh
+    request body, and requires the CSRF header to match a value derived
+    from that token - see accounts/cookies.py for why. The rotated refresh
     token SimpleJWT hands back is re-issued as a cookie rather than
     returned in the response body."""
 
@@ -137,15 +139,19 @@ class ActiveUserTokenRefreshView(TokenRefreshView):
         responses={200: AuthTokenPairSerializer},
         description="No request body - reads the refresh token from its httpOnly cookie and "
         "requires the matching X-Refresh-Csrf-Token header (see accounts/cookies.py). Rotates "
-        "the refresh cookie on success.",
+        "the refresh cookie on success and returns a new csrf_token to match.",
     )
     def post(self, request, *args, **kwargs):
-        if not csrf_check_passes(request):
-            return Response({"error": "CSRF check failed"}, status=status.HTTP_403_FORBIDDEN)
-
         refresh_token = request.COOKIES.get(REFRESH_COOKIE_NAME)
         if not refresh_token:
             return Response({"error": "Refresh token missing"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Checked before validating the token itself so a forged
+        # cross-site request never reaches (and can't trigger the
+        # rotation/blacklist side effects of) the validation step below.
+        incoming_jti = extract_jti_unverified(refresh_token)
+        if not csrf_check_passes(request, incoming_jti):
+            return Response({"error": "CSRF check failed"}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = self.get_serializer(data={"refresh": refresh_token})
         try:
@@ -154,11 +160,14 @@ class ActiveUserTokenRefreshView(TokenRefreshView):
             raise InvalidToken(e.args[0]) from e
 
         data = serializer.validated_data
-        response = Response({"access": data["access"]})
-
         new_refresh = data.get("refresh")
+        response_body = {"access": data["access"]}
         if new_refresh:
-            set_refresh_cookies(response, new_refresh, REFRESH_TOKEN_MAX_AGE_SECONDS)
+            response_body["csrf_token"] = csrf_token_for_jti(extract_jti_unverified(new_refresh))
+
+        response = Response(response_body)
+        if new_refresh:
+            set_refresh_cookie(response, new_refresh, REFRESH_TOKEN_MAX_AGE_SECONDS)
 
         return response
 
@@ -181,7 +190,10 @@ def register_user(request):
             response_data = {
                 "message": "User created successfully",
                 "user": UserProfileSerializer(user).data,
-                "tokens": {"access": str(refresh.access_token)},
+                "tokens": {
+                    "access": str(refresh.access_token),
+                    "csrf_token": csrf_token_for_jti(refresh["jti"]),
+                },
             }
 
         # Sent outside the transaction so a slow/broken email provider can
@@ -192,7 +204,7 @@ def register_user(request):
             pass
 
         response = Response(response_data, status=status.HTTP_201_CREATED)
-        set_refresh_cookies(response, str(refresh), REFRESH_TOKEN_MAX_AGE_SECONDS)
+        set_refresh_cookie(response, str(refresh), REFRESH_TOKEN_MAX_AGE_SECONDS)
         return response
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -223,10 +235,13 @@ def login_user(request):
             {
                 "message": "Login successful",
                 "user": UserProfileSerializer(user).data,
-                "tokens": {"access": str(refresh.access_token)},
+                "tokens": {
+                    "access": str(refresh.access_token),
+                    "csrf_token": csrf_token_for_jti(refresh["jti"]),
+                },
             }
         )
-        set_refresh_cookies(response, str(refresh), REFRESH_TOKEN_MAX_AGE_SECONDS)
+        set_refresh_cookie(response, str(refresh), REFRESH_TOKEN_MAX_AGE_SECONDS)
         return response
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -241,24 +256,25 @@ def login_user(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def logout_user(request):
-    if not csrf_check_passes(request):
-        return Response({"error": "CSRF check failed"}, status=status.HTTP_403_FORBIDDEN)
-
     refresh_token = request.COOKIES.get(REFRESH_COOKIE_NAME)
     if not refresh_token:
         return Response({"error": "No active session"}, status=status.HTTP_400_BAD_REQUEST)
+
+    incoming_jti = extract_jti_unverified(refresh_token)
+    if not csrf_check_passes(request, incoming_jti):
+        return Response({"error": "CSRF check failed"}, status=status.HTTP_403_FORBIDDEN)
 
     try:
         token = RefreshToken(refresh_token)
         token.blacklist()
     except TokenError:
         response = Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
-        clear_refresh_cookies(response)
+        clear_refresh_cookie(response)
         return response
 
     log_user_activity(request.user, "logout", "User logged out successfully", request)
     response = Response({"message": "Logout successful"})
-    clear_refresh_cookies(response)
+    clear_refresh_cookie(response)
     return response
 
 

@@ -34,24 +34,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isAuthenticated = !!user;
 
   const clearSession = () => {
-    tokenStore.setAccessToken(null);
+    tokenStore.clear();
     setUser(null);
   };
 
-  const applyAuthResponse = (response: { user: User; tokens: { access: string } }) => {
+  const applyAuthResponse = (response: {
+    user: User;
+    tokens: { access: string; csrf_token: string };
+  }) => {
     tokenStore.setAccessToken(response.tokens.access);
+    tokenStore.setRefreshCsrfToken(response.tokens.csrf_token);
     setUser(response.user);
   };
 
   useEffect(() => {
-    // The access token is never persisted (see tokenStore.ts), so every
-    // fresh page load starts from zero here - the only thing that can
-    // restore a session is a still-valid httpOnly refresh cookie, which
-    // this exchanges for a new access token before fetching the profile.
+    // Neither token is ever persisted (see tokenStore.ts), so every fresh
+    // page load starts from zero here - the only thing that can restore a
+    // session is a still-valid httpOnly refresh cookie, which this
+    // exchanges for a new access token before fetching the profile.
     const initializeAuth = async () => {
       try {
-        const { access } = await authAPI.refreshSession();
+        const { access, csrf_token } = await authAPI.refreshSession();
         tokenStore.setAccessToken(access);
+        tokenStore.setRefreshCsrfToken(csrf_token);
         const userData = await authAPI.getProfile();
         setUser(userData);
       } catch {
@@ -67,7 +72,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const authenticate = async (
-    request: () => Promise<{ user: User; tokens: { access: string } }>
+    request: () => Promise<{ user: User; tokens: { access: string; csrf_token: string } }>
   ) => {
     const response = await request();
     applyAuthResponse(response);
