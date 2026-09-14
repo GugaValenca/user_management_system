@@ -1,13 +1,17 @@
 import io
 import os
 import re
+import subprocess
+import sys
 import time
+from pathlib import Path
 from unittest import mock
 
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase
 from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
@@ -517,6 +521,53 @@ class LoginThrottleTests(APITestCase):
         self.assertEqual(throttled_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
 
+class AdminLoginRateLimitMiddlewareTests(APITestCase):
+    """Django's own admin login view has no throttling of its own - unlike
+    every login path in the custom API. accounts.middleware closes that gap;
+    these tests exercise the middleware directly against /admin/login/."""
+
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    @mock.patch("accounts.middleware.ADMIN_LOGIN_MAX_ATTEMPTS", 3)
+    def test_repeated_admin_login_attempts_are_throttled(self):
+        for _ in range(3):
+            response = self.client.post(
+                "/admin/login/", {"username": "nobody", "password": "wrong"}
+            )
+            self.assertNotEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        throttled_response = self.client.post(
+            "/admin/login/", {"username": "nobody", "password": "wrong"}
+        )
+
+        self.assertEqual(throttled_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_throttle_is_scoped_to_the_admin_login_path(self):
+        for _ in range(15):
+            response = self.client.get("/admin/")
+            self.assertNotEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_throttle_counts_are_isolated_per_ip(self):
+        with mock.patch("accounts.middleware.ADMIN_LOGIN_MAX_ATTEMPTS", 1):
+            first = self.client.post(
+                "/admin/login/",
+                {"username": "nobody", "password": "wrong"},
+                REMOTE_ADDR="10.0.0.1",
+            )
+            second = self.client.post(
+                "/admin/login/",
+                {"username": "nobody", "password": "wrong"},
+                REMOTE_ADDR="10.0.0.2",
+            )
+
+        self.assertNotEqual(first.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertNotEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
 class AuthHealthEndpointTests(APITestCase):
     def setUp(self):
         self.user = create_user(email="healthcheck@example.com", username="healthcheck")
@@ -979,3 +1030,54 @@ class AdminUserSearchTests(APITestCase):
 
         emails = {u["email"] for u in response.data["results"]}
         self.assertEqual(emails, {"inactive@example.com"})
+
+
+class ProductionSecretKeyValidationTests(TestCase):
+    """SECRET_KEY signs sessions, CSRF tokens, password reset/email
+    verification links, and (via SimpleJWT's default) every JWT this API
+    issues - settings.py refuses to start with DEBUG off unless it's been
+    replaced with a real, sufficiently long value. This has to run Django's
+    settings module fresh in a subprocess, since the validation happens at
+    import time and the test process has already imported it once."""
+
+    def _run_check(self, env_overrides):
+        env = {**os.environ, "DJANGO_ALLOWED_HOSTS": "example.com", **env_overrides}
+        return subprocess.run(
+            [sys.executable, "manage.py", "check"],
+            cwd=str(Path(__file__).resolve().parent.parent),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    def test_refuses_the_default_dev_key_in_production(self):
+        env = {"DJANGO_DEBUG": "False"}
+        env.pop("DJANGO_SECRET_KEY", None)
+        result = self._run_check(env)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("DJANGO_SECRET_KEY must be set", result.stderr)
+
+    def test_refuses_a_short_key_in_production(self):
+        result = self._run_check({"DJANGO_DEBUG": "False", "DJANGO_SECRET_KEY": "too-short"})
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("too short", result.stderr)
+
+    def test_accepts_a_strong_key_in_production(self):
+        result = self._run_check(
+            {
+                "DJANGO_DEBUG": "False",
+                "DJANGO_SECRET_KEY": "a-properly-long-random-production-secret-key-1234567890",
+            }
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_the_default_key_is_still_allowed_in_development(self):
+        env = {"DJANGO_DEBUG": "True"}
+        env.pop("DJANGO_SECRET_KEY", None)
+        result = self._run_check(env)
+
+        self.assertEqual(result.returncode, 0, result.stderr)

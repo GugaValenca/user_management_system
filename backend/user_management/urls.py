@@ -1,6 +1,6 @@
+import logging
 from datetime import timedelta
 
-import django
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -13,6 +13,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from accounts.models import UserActivityLog
 
+logger = logging.getLogger(__name__)
+
 
 def root_status(request):
     return JsonResponse(
@@ -20,7 +22,6 @@ def root_status(request):
             "status": "ok",
             "service": "user_management_system_api",
             "docs_hint": "/api/docs/",
-            "admin": "/admin/",
         }
     )
 
@@ -39,34 +40,36 @@ def api_status(request):
 
 
 def health_status(request):
+    # This endpoint is public and unauthenticated (it's what uptime monitors
+    # hit), so the raw exception text never goes in the response - a bare
+    # OperationalError can include the DB host, port, or other internal
+    # infrastructure details. The full exception is still logged
+    # server-side for whoever is actually debugging an outage.
     db_ok = True
-    db_error = None
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             cursor.fetchone()
-    except OperationalError as exc:
+    except OperationalError:
         db_ok = False
-        db_error = str(exc)
+        logger.exception("Health check database query failed")
 
     payload = {
         "status": "ok" if db_ok else "degraded",
         "service": "user_management_system_api",
         "timestamp_utc": timezone.now().isoformat(),
-        "django_version": django.get_version(),
         "database": {
             "status": "ok" if db_ok else "error",
         },
     }
-    if db_error:
-        payload["database"]["error"] = db_error
 
     return JsonResponse(payload, status=200 if db_ok else 503)
 
 
 def auth_health_status(request):
+    # Same reasoning as health_status above: no raw exception text in the
+    # public response, full detail goes to the server log instead.
     db_ok = True
-    db_error = None
     successful_logins_last_24h = 0
     last_successful_login = None
     now = timezone.now()
@@ -83,9 +86,9 @@ def auth_health_status(request):
             .values_list("timestamp", flat=True)
             .first()
         )
-    except OperationalError as exc:
+    except OperationalError:
         db_ok = False
-        db_error = str(exc)
+        logger.exception("Auth health check database query failed")
 
     payload = {
         "status": "ok" if db_ok else "degraded",
@@ -99,8 +102,6 @@ def auth_health_status(request):
             ),
         },
     }
-    if db_error:
-        payload["auth"]["error"] = db_error
 
     return JsonResponse(payload, status=200 if db_ok else 503)
 

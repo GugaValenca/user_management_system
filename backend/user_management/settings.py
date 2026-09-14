@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from decouple import Csv, config
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -16,6 +17,22 @@ def env_bool(name: str, default: bool) -> bool:
 
 SECRET_KEY = config("DJANGO_SECRET_KEY", default="django-insecure-dev-key")
 DEBUG = env_bool("DJANGO_DEBUG", True)
+
+# A weak or default SECRET_KEY is used to sign session cookies, the CSRF
+# token, password reset/email verification tokens, and (via SimpleJWT's
+# default HS256 signing key) every access and refresh token this API
+# issues. Failing fast here means a misconfigured deploy never silently
+# runs with a guessable key instead of quietly shipping a broken
+# production environment.
+if not DEBUG:
+    if SECRET_KEY == "django-insecure-dev-key" or SECRET_KEY.startswith("django-insecure-"):
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY must be set to a real, unique value in production."
+        )
+    if len(SECRET_KEY) < 32:
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY is too short for production use (need at least 32 characters)."
+        )
 
 ALLOWED_HOSTS = config(
     "DJANGO_ALLOWED_HOSTS",
@@ -46,6 +63,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "accounts.middleware.AdminLoginRateLimitMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
