@@ -1,14 +1,24 @@
 import MockAdapter from "axios-mock-adapter";
 import axios from "axios";
 import api, { authAPI } from "./api";
-import { authStorage } from "../utils/authStorage";
+import { tokenStore } from "../utils/tokenStore";
+
+const clearCookies = () => {
+  document.cookie.split(";").forEach((cookie) => {
+    const name = cookie.split("=")[0].trim();
+    if (name) {
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+    }
+  });
+};
 
 describe("api refresh flow", () => {
   let mock: MockAdapter;
   let rootMock: MockAdapter;
 
   beforeEach(() => {
-    localStorage.clear();
+    clearCookies();
+    tokenStore.setAccessToken(null);
     mock = new MockAdapter(api);
     rootMock = new MockAdapter(axios);
   });
@@ -19,22 +29,26 @@ describe("api refresh flow", () => {
   });
 
   it("retries the original request with a new access token after a 401", async () => {
-    authStorage.setTokens({ access: "expired-token", refresh: "valid-refresh-token" });
+    tokenStore.setAccessToken("expired-token");
+    document.cookie = "refresh_csrf_token=csrf-value";
 
     mock.onGet("/auth/profile/").replyOnce(401).onGet("/auth/profile/").reply(200, {
       id: 1,
       email: "user@example.com",
     });
-    rootMock.onPost(/\/auth\/refresh\/$/).reply(200, { access: "new-access-token" });
+    rootMock.onPost(/\/auth\/refresh\/$/).reply((config) => {
+      expect(config.headers?.["X-Refresh-Csrf-Token"]).toBe("csrf-value");
+      return [200, { access: "new-access-token" }];
+    });
 
     const profile = await authAPI.getProfile();
 
     expect(profile).toEqual({ id: 1, email: "user@example.com" });
-    expect(authStorage.getAccessToken()).toBe("new-access-token");
+    expect(tokenStore.getAccessToken()).toBe("new-access-token");
   });
 
   it("redirects to login when the refresh token itself is rejected", async () => {
-    authStorage.setTokens({ access: "expired-token", refresh: "expired-refresh-token" });
+    tokenStore.setAccessToken("expired-token");
 
     mock.onGet("/auth/profile/").reply(401);
     rootMock.onPost(/\/auth\/refresh\/$/).reply(401);
@@ -47,13 +61,13 @@ describe("api refresh flow", () => {
     await expect(authAPI.getProfile()).rejects.toBeTruthy();
 
     expect(window.location.href).toBe("/login");
-    expect(authStorage.getAccessToken()).toBeNull();
+    expect(tokenStore.getAccessToken()).toBeNull();
 
     window.location = originalLocation;
   });
 
   it("does not attempt a refresh loop when the refresh endpoint itself 401s", async () => {
-    authStorage.setTokens({ access: "expired-token", refresh: "expired-refresh-token" });
+    tokenStore.setAccessToken("expired-token");
     mock.onGet("/auth/profile/").reply(401);
     rootMock.onPost(/\/auth\/refresh\/$/).replyOnce(401);
 
@@ -68,5 +82,15 @@ describe("api refresh flow", () => {
     expect(rootMock.history.post.length).toBe(1);
 
     window.location = originalLocation;
+  });
+
+  it("sends the refresh CSRF cookie's value as a header on logout", async () => {
+    document.cookie = "refresh_csrf_token=logout-csrf-value";
+    mock.onPost("/auth/logout/").reply((config) => {
+      expect(config.headers?.["X-Refresh-Csrf-Token"]).toBe("logout-csrf-value");
+      return [200, {}];
+    });
+
+    await authAPI.logout();
   });
 });

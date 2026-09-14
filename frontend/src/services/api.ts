@@ -13,7 +13,7 @@ import {
   AdminUserListParams,
   AdminActivityLogParams,
 } from "../types";
-import { authStorage } from "../utils/authStorage";
+import { tokenStore } from "../utils/tokenStore";
 
 type RetryableRequestConfig = AxiosRequestConfig & { _retry?: boolean };
 type ListResponse<T> = T[] | PaginatedResponse<T>;
@@ -36,10 +36,16 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  // The refresh token now rides in an httpOnly cookie instead of the
+  // request/response body - without this, the browser would never
+  // actually attach or store it.
+  withCredentials: true,
 });
 
+const REFRESH_CSRF_HEADER = "X-Refresh-Csrf-Token";
+
 const redirectToLogin = () => {
-  authStorage.clearTokens();
+  tokenStore.setAccessToken(null);
   window.location.href = "/login";
 };
 
@@ -64,7 +70,7 @@ api.interceptors.request.use(
       requestUrl.includes("/auth/refresh/") ||
       requestUrl.includes("/auth/password-reset/") ||
       requestUrl.includes("/auth/verify-email/confirm/");
-    const token = authStorage.getAccessToken();
+    const token = tokenStore.getAccessToken();
     if (token && !isPublicAuthEndpoint) {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
@@ -80,17 +86,16 @@ api.interceptors.request.use(
 let refreshPromise: Promise<string | null> | null = null;
 
 const refreshAccessToken = async (): Promise<string | null> => {
-  const refreshToken = authStorage.getRefreshToken();
-  if (!refreshToken) return null;
-
   try {
     const { data } = await axios.post<{ access: string }>(
       `${API_BASE_URL}/auth/refresh/`,
+      null,
       {
-        refresh: refreshToken,
+        withCredentials: true,
+        headers: { [REFRESH_CSRF_HEADER]: tokenStore.getRefreshCsrfToken() ?? "" },
       }
     );
-    authStorage.setAccessToken(data.access);
+    tokenStore.setAccessToken(data.access);
     return data.access;
   } catch {
     return null;
@@ -138,7 +143,7 @@ export const authAPI = {
 
   login: (credentials: LoginCredentials): Promise<AuthResponse> => {
     // Avoid stale-token auth failures on login endpoints.
-    authStorage.clearTokens();
+    tokenStore.setAccessToken(null);
     const normalizedIdentifier = credentials.identifier.trim();
     return getResponseData(
       api.post("/auth/login/", {
@@ -150,8 +155,21 @@ export const authAPI = {
     );
   },
 
-  logout: (refreshToken: string): Promise<void> =>
-    getResponseData(api.post("/auth/logout/", { refresh_token: refreshToken })),
+  logout: (): Promise<void> =>
+    getResponseData(
+      api.post("/auth/logout/", null, {
+        headers: { [REFRESH_CSRF_HEADER]: tokenStore.getRefreshCsrfToken() ?? "" },
+      })
+    ),
+
+  // Exchanges the httpOnly refresh cookie for a fresh access token - used
+  // on app load, since the access token itself is never persisted.
+  refreshSession: (): Promise<{ access: string }> =>
+    getResponseData(
+      api.post("/auth/refresh/", null, {
+        headers: { [REFRESH_CSRF_HEADER]: tokenStore.getRefreshCsrfToken() ?? "" },
+      })
+    ),
 
   getProfile: (): Promise<User> => getResponseData(api.get("/auth/profile/")),
 

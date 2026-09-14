@@ -213,8 +213,9 @@ class ErrorResponseSerializer(serializers.Serializer):
 
 
 class AuthTokenPairSerializer(serializers.Serializer):
+    # The refresh token itself never appears in a response body - it's set
+    # directly as an httpOnly cookie (see accounts/cookies.py).
     access = serializers.CharField()
-    refresh = serializers.CharField()
 
 
 class AuthResponseSerializer(serializers.Serializer):

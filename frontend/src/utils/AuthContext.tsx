@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User, LoginCredentials, RegisterData } from "../types";
 import { authAPI } from "../services/api";
-import { authStorage } from "./authStorage";
+import { tokenStore } from "./tokenStore";
 
 interface AuthContextType {
   user: User | null;
@@ -34,30 +34,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isAuthenticated = !!user;
 
   const clearSession = () => {
-    authStorage.clearTokens();
+    tokenStore.setAccessToken(null);
     setUser(null);
   };
 
-  const applyAuthResponse = (response: {
-    user: User;
-    tokens: { access: string; refresh: string };
-  }) => {
-    authStorage.setTokens(response.tokens);
+  const applyAuthResponse = (response: { user: User; tokens: { access: string } }) => {
+    tokenStore.setAccessToken(response.tokens.access);
     setUser(response.user);
   };
 
   useEffect(() => {
+    // The access token is never persisted (see tokenStore.ts), so every
+    // fresh page load starts from zero here - the only thing that can
+    // restore a session is a still-valid httpOnly refresh cookie, which
+    // this exchanges for a new access token before fetching the profile.
     const initializeAuth = async () => {
-      const accessToken = authStorage.getAccessToken();
-      if (accessToken) {
-        try {
-          const userData = await authAPI.getProfile();
-          setUser(userData);
-        } catch {
-          clearSession();
-        }
+      try {
+        const { access } = await authAPI.refreshSession();
+        tokenStore.setAccessToken(access);
+        const userData = await authAPI.getProfile();
+        setUser(userData);
+      } catch {
+        clearSession();
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     initializeAuth();
@@ -66,7 +67,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const authenticate = async (
-    request: () => Promise<{ user: User; tokens: { access: string; refresh: string } }>
+    request: () => Promise<{ user: User; tokens: { access: string } }>
   ) => {
     const response = await request();
     applyAuthResponse(response);
@@ -82,10 +83,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
-      const refreshToken = authStorage.getRefreshToken();
-      if (refreshToken) {
-        await authAPI.logout(refreshToken);
-      }
+      await authAPI.logout();
     } catch (error) {
       console.error("Logout error:", error);
     } finally {

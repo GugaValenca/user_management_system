@@ -271,11 +271,11 @@ CORS_ALLOWED_ORIGINS = config(
     default="http://localhost:3000,http://127.0.0.1:3000",
     cast=Csv(),
 )
-# The API is JWT-only (bearer token in the Authorization header) - the
-# frontend never sends cookies cross-origin, so there's no reason to also
-# allow credentialed CORS requests. Leaving it on would just be unused
-# attack surface if a future XSS or CSRF issue ever showed up.
-CORS_ALLOW_CREDENTIALS = False
+# The refresh token now travels in an httpOnly cookie (see accounts/cookies.py)
+# instead of the response/request body, so the browser needs to be allowed to
+# actually send it cross-origin. CORS_ALLOWED_ORIGINS stays a strict, exact
+# allowlist (never a wildcard) - that's what makes credentialed CORS safe.
+CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = config(
     "CSRF_TRUSTED_ORIGINS",
@@ -287,6 +287,16 @@ CSRF_TRUSTED_ORIGINS = config(
 # (which embed the token server-side via {% csrf_token %}), never by
 # frontend JS - blocking script access limits what a stray XSS could steal.
 CSRF_COOKIE_HTTPONLY = True
+
+# Cookie flags for the refresh-token cookie (accounts/cookies.py). The
+# frontend and API live on different vercel.app subdomains, which the
+# Public Suffix List treats as separate sites - SameSite=None is required
+# for the cookie to be sent cross-site at all, and browsers only honor
+# SameSite=None on cookies also marked Secure. Locally, frontend and
+# backend differ only by port (same "site"), so Lax + non-Secure works
+# over plain http.
+AUTH_COOKIE_SECURE = not DEBUG
+AUTH_COOKIE_SAMESITE = "None" if not DEBUG else "Lax"
 
 # Explicit rather than relying on Django's implicit 2.5MB default - this is
 # a JSON API with no legitimate request anywhere near that size, and this

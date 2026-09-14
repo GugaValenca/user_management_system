@@ -21,6 +21,7 @@ from rest_framework.test import APITestCase
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .cookies import CSRF_COOKIE_NAME, REFRESH_COOKIE_NAME
 from .models import User, UserActivityLog
 from .tokens import email_verification_token
 from .views import LoginRateThrottle
@@ -43,6 +44,16 @@ def _generate_test_image(dimensions):
     image.save(buffer, format="PNG")
     buffer.seek(0)
     return SimpleUploadedFile("test.png", buffer.read(), content_type="image/png")
+
+
+def set_refresh_cookie(client, refresh_token, csrf_token="test-csrf-token"):
+    """Puts a refresh token and its matching CSRF double-submit cookie on a
+    test client, the way a real login response would - and returns the
+    header kwarg to pass alongside any request that needs to clear the
+    CSRF check in accounts/cookies.py."""
+    client.cookies[REFRESH_COOKIE_NAME] = refresh_token
+    client.cookies[CSRF_COOKIE_NAME] = csrf_token
+    return {"HTTP_X_REFRESH_CSRF_TOKEN": csrf_token}
 
 
 def create_user(**overrides):
@@ -80,11 +91,29 @@ class AuthLoginTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("tokens", response.data)
         self.assertIn("access", response.data["tokens"])
-        self.assertIn("refresh", response.data["tokens"])
+        # The refresh token never appears in the body - it's set as an
+        # httpOnly cookie instead (asserted in RefreshCookieTests).
+        self.assertNotIn("refresh", response.data["tokens"])
         self.assertEqual(response.data["user"]["username"], self.user.username)
         self.assertTrue(
             UserActivityLog.objects.filter(user=self.user, activity_type="login").exists()
         )
+
+    def test_login_sets_an_httponly_refresh_cookie(self):
+        response = self.client.post(
+            self.login_url,
+            {"identifier": self.user.username, "password": self.password},
+            format="json",
+        )
+
+        refresh_cookie = response.cookies[REFRESH_COOKIE_NAME]
+        self.assertTrue(refresh_cookie.value)
+        self.assertTrue(refresh_cookie["httponly"])
+        self.assertEqual(refresh_cookie["path"], "/api/auth/")
+
+        csrf_cookie = response.cookies[CSRF_COOKIE_NAME]
+        self.assertTrue(csrf_cookie.value)
+        self.assertFalse(csrf_cookie["httponly"])
 
     def test_login_with_email_returns_tokens(self):
         response = self.client.post(
@@ -155,6 +184,8 @@ class AuthRegisterTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(User.objects.filter(email="new.user@example.com").exists())
         self.assertEqual(response.data["user"]["role"], "user")
+        self.assertNotIn("refresh", response.data["tokens"])
+        self.assertTrue(response.cookies[REFRESH_COOKIE_NAME]["httponly"])
         self.assertTrue(
             UserActivityLog.objects.filter(
                 user__email="new.user@example.com", activity_type="register"
@@ -224,36 +255,60 @@ class AuthLogoutTests(APITestCase):
     def _authenticate(self):
         refresh = RefreshToken.for_user(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
-        return str(refresh)
+        csrf_headers = set_refresh_cookie(self.client, str(refresh))
+        return str(refresh), csrf_headers
 
     def test_logout_blacklists_refresh_token(self):
-        refresh_token = self._authenticate()
+        refresh_token, csrf_headers = self._authenticate()
 
-        response = self.client.post(
-            self.logout_url, {"refresh_token": refresh_token}, format="json"
-        )
+        response = self.client.post(self.logout_url, **csrf_headers)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(
             UserActivityLog.objects.filter(user=self.user, activity_type="logout").exists()
         )
 
-        # The same refresh token can no longer be used once blacklisted.
-        second_response = self.client.post(
-            self.logout_url, {"refresh_token": refresh_token}, format="json"
-        )
+        # The same refresh token can no longer be used once blacklisted -
+        # re-set the cookie since the successful logout above cleared it.
+        csrf_token = csrf_headers["HTTP_X_REFRESH_CSRF_TOKEN"]
+        set_refresh_cookie(self.client, refresh_token, csrf_token=csrf_token)
+        second_response = self.client.post(self.logout_url, **csrf_headers)
         self.assertEqual(second_response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_logout_clears_the_refresh_cookies(self):
+        _, csrf_headers = self._authenticate()
+
+        response = self.client.post(self.logout_url, **csrf_headers)
+
+        self.assertEqual(response.cookies[REFRESH_COOKIE_NAME].value, "")
+        self.assertEqual(response.cookies[CSRF_COOKIE_NAME].value, "")
+
     def test_logout_requires_authentication(self):
-        response = self.client.post(self.logout_url, {"refresh_token": "x"}, format="json")
+        response = self.client.post(self.logout_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_logout_without_refresh_token_returns_400(self):
-        self._authenticate()
+    def test_logout_without_refresh_cookie_returns_400(self):
+        refresh = RefreshToken.for_user(self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+        self.client.cookies[CSRF_COOKIE_NAME] = "some-csrf-token"
 
-        response = self.client.post(self.logout_url, {}, format="json")
+        response = self.client.post(self.logout_url, HTTP_X_REFRESH_CSRF_TOKEN="some-csrf-token")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_logout_rejects_a_mismatched_csrf_header(self):
+        self._authenticate()
+
+        response = self.client.post(self.logout_url, HTTP_X_REFRESH_CSRF_TOKEN="wrong-value")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_logout_rejects_a_missing_csrf_header(self):
+        self._authenticate()
+
+        response = self.client.post(self.logout_url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class ProfileTests(APITestCase):
@@ -865,21 +920,41 @@ class LoginTimingTests(APITestCase):
 
 
 class TokenRefreshTests(APITestCase):
+    """The refresh endpoint now reads the token from its httpOnly cookie
+    (see accounts/cookies.py) instead of the request body, and requires the
+    matching double-submit CSRF header."""
+
+    def _post_refresh(self, refresh_token, csrf_token="test-csrf-token"):
+        headers = set_refresh_cookie(self.client, refresh_token, csrf_token=csrf_token)
+        return self.client.post(reverse("token_refresh"), **headers)
+
     def test_refresh_returns_a_new_access_token(self):
         user = create_user()
         refresh = RefreshToken.for_user(user)
 
-        response = self.client.post(
-            reverse("token_refresh"), {"refresh": str(refresh)}, format="json"
-        )
+        response = self._post_refresh(str(refresh))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access", response.data)
+        self.assertNotIn("refresh", response.data)
+
+    def test_refresh_rotates_the_cookie_and_blacklists_the_old_token(self):
+        user = create_user()
+        refresh = RefreshToken.for_user(user)
+
+        response = self._post_refresh(str(refresh))
+        rotated_refresh_cookie = response.cookies[REFRESH_COOKIE_NAME].value
+
+        self.assertTrue(rotated_refresh_cookie)
+        self.assertNotEqual(rotated_refresh_cookie, str(refresh))
+
+        # The old refresh token was blacklisted by rotation - reusing it
+        # (even with a valid CSRF pair) now fails.
+        reuse_response = self._post_refresh(str(refresh))
+        self.assertEqual(reuse_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_refresh_rejects_an_invalid_token(self):
-        response = self.client.post(
-            reverse("token_refresh"), {"refresh": "not-a-real-token"}, format="json"
-        )
+        response = self._post_refresh("not-a-real-token")
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -889,9 +964,7 @@ class TokenRefreshTests(APITestCase):
         user.is_active = False
         user.save(update_fields=["is_active"])
 
-        response = self.client.post(
-            reverse("token_refresh"), {"refresh": str(refresh)}, format="json"
-        )
+        response = self._post_refresh(str(refresh))
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -900,11 +973,38 @@ class TokenRefreshTests(APITestCase):
         refresh = RefreshToken.for_user(user)
         user.delete()
 
+        response = self._post_refresh(str(refresh))
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_refresh_without_a_cookie_returns_401(self):
+        self.client.cookies[CSRF_COOKIE_NAME] = "test-csrf-token"
+
         response = self.client.post(
-            reverse("token_refresh"), {"refresh": str(refresh)}, format="json"
+            reverse("token_refresh"), HTTP_X_REFRESH_CSRF_TOKEN="test-csrf-token"
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_refresh_rejects_a_missing_csrf_header(self):
+        user = create_user()
+        refresh = RefreshToken.for_user(user)
+        self.client.cookies[REFRESH_COOKIE_NAME] = str(refresh)
+
+        response = self.client.post(reverse("token_refresh"))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_refresh_rejects_a_mismatched_csrf_header(self):
+        user = create_user()
+        refresh = RefreshToken.for_user(user)
+        set_refresh_cookie(self.client, str(refresh), csrf_token="the-real-token")
+
+        response = self.client.post(
+            reverse("token_refresh"), HTTP_X_REFRESH_CSRF_TOKEN="a-different-token"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class AdminUserDetailTests(APITestCase):

@@ -1,5 +1,6 @@
 import time
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -10,19 +11,26 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
-from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.settings import api_settings as simplejwt_settings
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from .cookies import (
+    REFRESH_COOKIE_NAME,
+    clear_refresh_cookies,
+    csrf_check_passes,
+    set_refresh_cookies,
+)
 from .emails import send_password_reset_email, send_verification_email
 from .models import User, UserActivityLog
 from .permissions import IsAdmin
 from .serializers import (
     AdminUserUpdateSerializer,
     AuthResponseSerializer,
+    AuthTokenPairSerializer,
     EmailVerificationConfirmSerializer,
     ErrorResponseSerializer,
     MessageResponseSerializer,
@@ -60,6 +68,8 @@ class EmailVerificationRateThrottle(UserRateThrottle):
 # See the comment in request_password_reset() - this is a timing-attack
 # mitigation, not an arbitrary constant.
 PASSWORD_RESET_RESPONSE_FLOOR_SECONDS = 0.6
+
+REFRESH_TOKEN_MAX_AGE_SECONDS = int(settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds())
 
 
 def get_client_ip(request):
@@ -114,7 +124,43 @@ class ActiveUserTokenRefreshSerializer(TokenRefreshSerializer):
 
 
 class ActiveUserTokenRefreshView(TokenRefreshView):
+    """Reads the refresh token from the httpOnly cookie instead of the
+    request body, and requires the double-submit CSRF header to match its
+    companion cookie - see accounts/cookies.py for why. The rotated refresh
+    token SimpleJWT hands back is re-issued as a cookie rather than
+    returned in the response body."""
+
     serializer_class = ActiveUserTokenRefreshSerializer
+
+    @extend_schema(
+        request=None,
+        responses={200: AuthTokenPairSerializer},
+        description="No request body - reads the refresh token from its httpOnly cookie and "
+        "requires the matching X-Refresh-Csrf-Token header (see accounts/cookies.py). Rotates "
+        "the refresh cookie on success.",
+    )
+    def post(self, request, *args, **kwargs):
+        if not csrf_check_passes(request):
+            return Response({"error": "CSRF check failed"}, status=status.HTTP_403_FORBIDDEN)
+
+        refresh_token = request.COOKIES.get(REFRESH_COOKIE_NAME)
+        if not refresh_token:
+            return Response({"error": "Refresh token missing"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        serializer = self.get_serializer(data={"refresh": refresh_token})
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            raise InvalidToken(e.args[0]) from e
+
+        data = serializer.validated_data
+        response = Response({"access": data["access"]})
+
+        new_refresh = data.get("refresh")
+        if new_refresh:
+            set_refresh_cookies(response, new_refresh, REFRESH_TOKEN_MAX_AGE_SECONDS)
+
+        return response
 
 
 @extend_schema(
@@ -135,7 +181,7 @@ def register_user(request):
             response_data = {
                 "message": "User created successfully",
                 "user": UserProfileSerializer(user).data,
-                "tokens": {"access": str(refresh.access_token), "refresh": str(refresh)},
+                "tokens": {"access": str(refresh.access_token)},
             }
 
         # Sent outside the transaction so a slow/broken email provider can
@@ -145,7 +191,9 @@ def register_user(request):
         except Exception:
             pass
 
-        return Response(response_data, status=status.HTTP_201_CREATED)
+        response = Response(response_data, status=status.HTTP_201_CREATED)
+        set_refresh_cookies(response, str(refresh), REFRESH_TOKEN_MAX_AGE_SECONDS)
+        return response
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -171,40 +219,47 @@ def login_user(request):
         log_user_activity(user, "login", "User logged in successfully", request)
 
         refresh = RefreshToken.for_user(user)
-        return Response(
+        response = Response(
             {
                 "message": "Login successful",
                 "user": UserProfileSerializer(user).data,
-                "tokens": {"access": str(refresh.access_token), "refresh": str(refresh)},
+                "tokens": {"access": str(refresh.access_token)},
             }
         )
+        set_refresh_cookies(response, str(refresh), REFRESH_TOKEN_MAX_AGE_SECONDS)
+        return response
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(
-    request={
-        "application/json": {"type": "object", "properties": {"refresh_token": {"type": "string"}}}
-    },
+    request=None,
     responses={200: MessageResponseSerializer, 400: ErrorResponseSerializer},
+    description="No request body - reads the refresh token from its httpOnly cookie and "
+    "requires the matching X-Refresh-Csrf-Token header (see accounts/cookies.py).",
 )
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def logout_user(request):
-    try:
-        refresh_token = request.data.get("refresh_token")
-        if not refresh_token:
-            return Response(
-                {"error": "refresh_token is required"}, status=status.HTTP_400_BAD_REQUEST
-            )
+    if not csrf_check_passes(request):
+        return Response({"error": "CSRF check failed"}, status=status.HTTP_403_FORBIDDEN)
 
+    refresh_token = request.COOKIES.get(REFRESH_COOKIE_NAME)
+    if not refresh_token:
+        return Response({"error": "No active session"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
         token = RefreshToken(refresh_token)
         token.blacklist()
-
-        log_user_activity(request.user, "logout", "User logged out successfully", request)
-        return Response({"message": "Logout successful"})
     except TokenError:
-        return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+        response = Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+        clear_refresh_cookies(response)
+        return response
+
+    log_user_activity(request.user, "logout", "User logged out successfully", request)
+    response = Response({"message": "Logout successful"})
+    clear_refresh_cookies(response)
+    return response
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):

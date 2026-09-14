@@ -34,9 +34,10 @@ export interface RegisterData {
 export interface AuthResponse {
   message: string;
   user: User;
+  // The refresh token never appears here - it's set directly as an
+  // httpOnly cookie the backend manages (see accounts/cookies.py).
   tokens: {
     access: string;
-    refresh: string;
   };
 }
 
