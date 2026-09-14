@@ -1256,3 +1256,31 @@ class CorsPreflightTests(APITestCase):
         )
 
         self.assertEqual(response.get("Access-Control-Allow-Credentials"), "true")
+
+
+class UnhandledExceptionHandlingTests(APITestCase):
+    """A production incident (profile picture uploads crashing with a raw
+    HTML 500 - see UserProfileView) showed the default DRF exception
+    handler only converts APIException/Http404/PermissionDenied into a
+    response; anything else propagates as Django's own HTML error page,
+    even on an endpoint that returns JSON everywhere else. This checks the
+    global fallback that now catches everything."""
+
+    def test_unexpected_errors_return_json_not_an_html_crash_page(self):
+        user = create_user()
+
+        with mock.patch(
+            "accounts.views.UserActivityLog.objects.create",
+            side_effect=RuntimeError("boom"),
+        ):
+            response = self.client.post(
+                reverse("login"),
+                {"identifier": user.username, "password": "TestPass123!"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertEqual(
+            response.data["error"], "An unexpected error occurred. Please try again later."
+        )
