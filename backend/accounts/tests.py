@@ -1041,7 +1041,12 @@ class ProductionSecretKeyValidationTests(TestCase):
     import time and the test process has already imported it once."""
 
     def _run_check(self, env_overrides):
+        # A value of None means "unset this var" - needed because the CI
+        # job itself sets DJANGO_SECRET_KEY at the step level, so simply
+        # omitting it from env_overrides would leak that value through
+        # os.environ instead of exercising the "not set at all" case.
         env = {**os.environ, "DJANGO_ALLOWED_HOSTS": "example.com", **env_overrides}
+        env = {key: value for key, value in env.items() if value is not None}
         return subprocess.run(
             [sys.executable, "manage.py", "check"],
             cwd=str(Path(__file__).resolve().parent.parent),
@@ -1052,9 +1057,7 @@ class ProductionSecretKeyValidationTests(TestCase):
         )
 
     def test_refuses_the_default_dev_key_in_production(self):
-        env = {"DJANGO_DEBUG": "False"}
-        env.pop("DJANGO_SECRET_KEY", None)
-        result = self._run_check(env)
+        result = self._run_check({"DJANGO_DEBUG": "False", "DJANGO_SECRET_KEY": None})
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("DJANGO_SECRET_KEY must be set", result.stderr)
@@ -1076,8 +1079,6 @@ class ProductionSecretKeyValidationTests(TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_the_default_key_is_still_allowed_in_development(self):
-        env = {"DJANGO_DEBUG": "True"}
-        env.pop("DJANGO_SECRET_KEY", None)
-        result = self._run_check(env)
+        result = self._run_check({"DJANGO_DEBUG": "True", "DJANGO_SECRET_KEY": None})
 
         self.assertEqual(result.returncode, 0, result.stderr)
